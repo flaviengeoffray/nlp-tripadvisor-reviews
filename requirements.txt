@@ -1,0 +1,7 @@
+datasets
+pandas
+scikit-learn
+nltk
+ipykernel
+
+torch
