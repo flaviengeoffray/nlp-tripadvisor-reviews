@@ -3,5 +3,5 @@ pandas
 scikit-learn
 nltk
 ipykernel
-
+tokenizers
 torch
