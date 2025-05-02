@@ -18,9 +18,14 @@ class BaseClassificationModel(BaseModel, ABC):
         raise NotImplementedError
 
     def evaluate(
-        self, X: Union[np.ndarray, Tensor], y: Union[np.ndarray, Tensor]
+        self,
+        X: Union[np.ndarray, Tensor],
+        y: Union[np.ndarray, Tensor],
+        y_pred: Union[np.ndarray, Tensor] = None,
     ) -> Dict[str, float]:
-        y_pred = self.predict(X)
+
+        if not y_pred:
+            y_pred = self.predict(X)
         y_true = y.detach().cpu().numpy() if isinstance(y, Tensor) else np.asarray(y)
         y_pred_np = (
             y_pred.detach().cpu().numpy()

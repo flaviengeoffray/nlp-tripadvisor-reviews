@@ -18,7 +18,7 @@ class BaseModel(ABC):
     Abstract base class for all models
     """
 
-    def __init__(self, model_path: Path) -> None:
+    def __init__(self, model_path: Path, **kwargs: Any) -> None:
         self.model_path = model_path
 
     @abstractmethod
@@ -27,7 +27,10 @@ class BaseModel(ABC):
 
     @abstractmethod
     def evaluate(
-        self, X: Union[np.ndarray, Tensor], y: Union[np.ndarray, Tensor]
+        self,
+        X: Union[np.ndarray, Tensor],
+        y: Union[np.ndarray, Tensor],
+        y_pred: Union[np.ndarray, Tensor] = None,
     ) -> Dict[str, float]:
         raise NotImplementedError
 

@@ -21,6 +21,8 @@ class TripAdvisorDataset(Dataset):
     def __getitem__(self, idx: int):
         text = self.texts[idx]
         label = self.labels[idx]
+        label = (float(label) - 1.0) / 4.0
+        label = torch.tensor(label, dtype=torch.float)
         if self.tokenizer:
             enc = self.tokenizer(
                 text, truncation=True, padding="max_length", return_tensors="pt"

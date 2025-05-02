@@ -17,12 +17,17 @@ from vectorizers.word2vec import Word2VecVectorizer
 from models.classification.logistic_regression.logistic_regression import (
     LogisticRegressionModel,
 )
+from models.classification.feedforward.feedforward import FNNModel
+
 
 TOKENIZER_REGISTRY = {"bpe": BpeTokenizer}
 
 VECTORIZER_REGISTRY = {"tf-idf": TfidfVectorizer, "word2vec": Word2VecVectorizer}
 
-CLASSIFICATION_REGISTRY = {"logistic-regression": LogisticRegressionModel}
+CLASSIFICATION_REGISTRY = {
+    "logistic-regression": LogisticRegressionModel,
+    "feedforward": FNNModel,
+}
 
 GENERATIVE_REGISTRY = {}
 
