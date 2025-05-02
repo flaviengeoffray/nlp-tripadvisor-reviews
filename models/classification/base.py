@@ -24,14 +24,26 @@ class BaseClassificationModel(BaseModel, ABC):
         y_pred: Union[np.ndarray, Tensor] = None,
     ) -> Dict[str, float]:
 
-        if not y_pred:
+        if y_pred is None:
             y_pred = self.predict(X)
-        y_true = y.detach().cpu().numpy() if isinstance(y, Tensor) else np.asarray(y)
-        y_pred_np = (
-            y_pred.detach().cpu().numpy()
-            if isinstance(y_pred, Tensor)
-            else np.asarray(y_pred)
-        )
+        # y_true = y.detach().cpu().numpy() if isinstance(y, Tensor) else np.asarray(y)
+        # y_pred_np = (
+        #     y_pred.detach().cpu().numpy()
+        #     if isinstance(y_pred, Tensor)
+        #     else np.asarray(y_pred)
+        # )
+        if isinstance(y_pred, Tensor):
+            y_pred_np = y_pred.detach().cpu().numpy()
+        else:
+            y_pred_np = np.asarray(y_pred)
+
+        if y_pred_np.ndim == 2:
+            y_pred_np = np.argmax(y_pred_np, axis=1)
+
+        if isinstance(y, Tensor):
+            y_true = y.detach().cpu().numpy()
+        else:
+            y_true = np.asarray(y)
 
         return {
             "accuracy": accuracy_score(y_true, y_pred_np),

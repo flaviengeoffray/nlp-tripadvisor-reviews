@@ -33,12 +33,13 @@ class FNNModel(BaseTorchModel, BaseClassificationModel):
         # output_dim: int,
         # scheduler: bool = True,
     ):
+        nn.Module.__init__(self)
 
         input_dim: int = kwargs.pop("input_dim", 1)
         hidden_dims: List[int] = kwargs.pop("hidden_dims", [128])
         output_dim: int = kwargs.pop("output_dim", 5)
         dropout_rate: float = kwargs.pop("dropout_rate", None)  # 0.3)
-        lr: float = kwargs.pop("lr", 1e-3)
+        # lr: float = kwargs.pop("lr", 1e-3)
 
         layers: List[nn.Module] = []
         dims = [input_dim] + hidden_dims
@@ -52,10 +53,7 @@ class FNNModel(BaseTorchModel, BaseClassificationModel):
 
         self.layers = nn.ModuleList(layers)
 
-        super().__init__(
-            model_path=model_path,
-            optimizer=torch.optim.Adam(self._seq.parameters(), lr=lr),
-        )
+        super().__init__(model_path=model_path, kwargs=kwargs)
 
     def forward(self, X: Tensor) -> Tensor:
         out = X

@@ -9,7 +9,7 @@ model_path: "examples/FeedForward/"
 vectorizer:
   type: "tf-idf"
   params:
-    max_features: 10000
+    max_features: 1000
     stop_words: "english"
     norm: "l2"
     use_idf: true
@@ -19,7 +19,7 @@ vectorizer:
 model:
   type: "feedforward"
   params:
-    input_dim: 10000
+    input_dim: 1000
     hidden_dims: [512, 256]
     output_dim: 5
     dropout_rate: 0.3
