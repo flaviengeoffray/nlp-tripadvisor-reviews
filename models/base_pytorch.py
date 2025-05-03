@@ -36,7 +36,7 @@ class BaseTorchModel(nn.Module, BaseModel):
         # nn.Module.__init__(self)
         BaseModel.__init__(self, model_path)
 
-        lr: float = kwargs.pop("lr", 1e-3)
+        lr: float = kwargs.pop("lr", 1e-4)
 
         self.device = torch.device(kwargs.pop("device", "cpu"))
         self.epochs = kwargs.pop("epochs", 20)
@@ -52,7 +52,7 @@ class BaseTorchModel(nn.Module, BaseModel):
 
         self.scheduler: ReduceLROnPlateau = (
             ReduceLROnPlateau(
-                self.optimizer, mode="min", factor=0.5, patience=2, verbose=True
+                self.optimizer, mode="min", factor=0.8, patience=5, verbose=True
             )
             if scheduler
             else None
@@ -110,8 +110,6 @@ class BaseTorchModel(nn.Module, BaseModel):
         y_train: Any,
         X_val: Any,
         y_val: Any,
-        # train_loader: DataLoader,
-        # val_loader: DataLoader,
     ) -> None:
 
         self.to(self.device)
@@ -138,31 +136,36 @@ class BaseTorchModel(nn.Module, BaseModel):
 
             self.eval()
             val_loss = 0.0
-            all_metrics: List[Dict[str, float]] = []
+
+            all_preds: List[np.ndarray] = []
+            all_labels: List[int] = []
 
             with torch.no_grad():
                 for X, y in val_loader:
                     X, y = X.to(self.device), y.to(self.device)
                     outputs = self.forward(X)
+
+                    all_preds.append(outputs.detach().cpu().numpy())
+                    all_labels.extend(y.cpu().numpy().tolist())
+
                     loss = self.criterion(outputs, y)
-                    metrics = self.evaluate(X, y, y_pred=outputs)
-                    all_metrics.append(metrics)
                     val_loss += loss.item()
             val_loss /= len(val_loader)
+
+            all_preds: np.ndarray = np.concatenate(all_preds, axis=0)
+            all_labels: np.ndarray = np.array(all_labels, dtype=int)
 
             print(
                 f"Epoch {epoch+1}/{self.epochs} — Train Loss: {train_loss:.4f} — Val Loss: {val_loss:.4f}"
             )
 
-            metrics_means: Dict[str, float] = {}
-
-            for k in all_metrics[0].keys():
-                vals = [m[k] for m in all_metrics]
-                metrics_means[k] = float(np.mean(vals))
+            metrics: Dict[str, float] = self.evaluate(
+                X=None, y=all_labels, y_pred=all_preds
+            )
 
             print(
                 "Val Metrics — ",
-                ", ".join(f"{k}={v:.4f}" for k, v in metrics_means.items()),
+                ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()),
             )
 
             from utils import save_metrics  # FIXME: Crado
