@@ -1,9 +1,14 @@
 import math
-from typing import Callable, Tuple
+from typing import Any, Callable, Tuple
 import torch
 from torch import nn
 from torch import Tensor
+from torch.utils.data import DataLoader
 
+from data.datasets.TripAdvisorDataset import TripAdvisorDataset
+
+from data.tokenizers.base import BaseTokenizer
+from data.tokenizers.bpe import BpeTokenizer
 from models.base_pytorch import BaseTorchModel
 from models.generative.base import BaseGenerativeModel
 
@@ -345,13 +350,16 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
     def __init__(self, model_path, **kwargs):
         super().__init__(model_path, **kwargs)
 
-        self.vocab_size: int = kwargs.pop("vocab_size", 10000)
+        self.vocab_size: int = kwargs.pop("vocab_size", 30000)
         self.d_model: int = kwargs.pop("d_model", 512)
         self.N: int = kwargs.pop("N", 6)
         self.h: int = kwargs.pop("h", 8)
         self.dropout: float = kwargs.pop("dropout", 0.1)
         self.d_ff: int = kwargs.pop("d_ff", 2048)
-        self.max_target_len: int = kwargs.pop("max_target_len", 1000)
+        self.max_target_len: int = kwargs.pop("max_target_len", 256)
+
+        self.max_input_len: int = kwargs.pop("max_input_len", 32)
+        self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", BpeTokenizer())
 
         # Embeddings Layers
         self.input_embedding: Embedding = Embedding(self.d_model, self.vocab_size)
@@ -416,3 +424,49 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
 
     def project(self, X: Tensor) -> Tensor:
         return self.projection(X)
+
+    def _get_dataloaders(
+        self,
+        X_train: Any,
+        y_train: Any,
+        X_val: Any,
+        y_val: Any,
+        shuffle: bool = True,
+    ) -> Tuple[DataLoader, DataLoader]:
+
+        if not hasattr(X_train, "tolist") or not hasattr(y_train, "tolist"):
+            raise ValueError("X_train and y_train needs to by numpy arrays")
+
+        train_ds = TripAdvisorDataset(
+            X_train.tolist(),
+            y_train.tolist(),
+            self.tokenizer,
+            self.max_input_len,
+            self.max_target_len,
+        )
+
+        if not hasattr(X_val, "tolist") or not hasattr(y_val, "tolist"):
+            raise ValueError("X_val and y_val needs to by numpy arrays")
+
+        val_ds = TripAdvisorDataset(
+            X_val.tolist(),
+            y_val.tolist(),
+            self.tokenizer,
+            self.max_input_len,
+            self.max_target_len,
+        )
+
+        train_loader = DataLoader(train_ds, batch_size=self.batch_size, shuffle=shuffle)
+        val_loader = DataLoader(val_ds, batch_size=1, shuffle=True)
+
+        return train_loader, val_loader
+
+    def fit(
+        self,
+        X_train: Any,
+        y_train: Any,
+        X_val: Any,
+        y_val: Any,
+    ) -> None:
+
+        return

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 
 @dataclass
@@ -26,6 +26,10 @@ class BaseTokenizer(ABC):
 
     @abstractmethod
     def decode(self, tokens: List[int]) -> str:
+        pass
+
+    @abstractmethod
+    def token_to_id(self, token: str) -> Optional[int]:
         pass
 
     @abstractmethod
