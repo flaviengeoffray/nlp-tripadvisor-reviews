@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any, Dict, Optional, Union
+
+import numpy as np
+from torch import Tensor
 
 # import torch
 # from torch import Tensor
@@ -17,3 +20,11 @@ class BaseGenerativeModel(BaseModel, ABC):
         Generate a sentence from an input data.
         """
         raise NotImplementedError
+
+    def evaluate(
+        self,
+        X: Union[np.ndarray, Tensor],
+        y: Union[np.ndarray, Tensor],
+        y_pred: Union[np.ndarray, Tensor] = None,
+    ) -> Dict[str, float]:
+        pass

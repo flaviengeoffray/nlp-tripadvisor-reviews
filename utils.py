@@ -19,6 +19,8 @@ from models.classification.logistic_regression.logistic_regression import (
 )
 from models.classification.feedforward.feedforward import FNNModel
 
+from models.generative.transformer.transformer import Transformer
+
 
 TOKENIZER_REGISTRY = {"bpe": BpeTokenizer}
 
@@ -29,7 +31,7 @@ CLASSIFICATION_REGISTRY = {
     "feedforward": FNNModel,
 }
 
-GENERATIVE_REGISTRY = {}
+GENERATIVE_REGISTRY = {"transformer": Transformer}
 
 
 def load_config(path: str) -> Config:

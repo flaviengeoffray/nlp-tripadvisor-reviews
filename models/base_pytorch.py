@@ -8,6 +8,7 @@ from torch import Tensor
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from tqdm import tqdm
 
 from .base import BaseModel
 
@@ -42,7 +43,9 @@ class BaseTorchModel(nn.Module, BaseModel):
         self.epochs = kwargs.pop("epochs", 20)
         self.patience = kwargs.pop("patience", 5)
         # self.model: nn.Module = kwargs.pop("model", None)
-        self.criterion: nn.Module = kwargs.pop("criterion", nn.CrossEntropyLoss())
+        self.criterion: nn.Module = kwargs.pop("criterion", nn.CrossEntropyLoss()).to(
+            self.device
+        )
         self.optimizer: torch.optim.Optimizer = kwargs.pop(
             "optimizer", torch.optim.Adam(self.parameters(), lr=lr)
         )
@@ -123,7 +126,9 @@ class BaseTorchModel(nn.Module, BaseModel):
             self.train()
             train_loss = 0.0
 
-            for X, y in train_loader:
+            for X, y in tqdm(
+                train_loader, desc=f"Processing epoch: {epoch}/{self.epochs}"
+            ):
                 X, y = X.to(self.device), y.to(self.device)
                 self.optimizer.zero_grad()
                 outputs = self.forward(X)
@@ -182,7 +187,7 @@ class BaseTorchModel(nn.Module, BaseModel):
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 patience_counter = 0
-                self.save(self.model_path / "best_model.pt")
+                self.save(self.model_path / "best_model.pt", epoch)
             else:
                 patience_counter += 1
                 if patience_counter >= self.patience:
@@ -211,9 +216,16 @@ class BaseTorchModel(nn.Module, BaseModel):
     # ) -> Dict[str, float]:
     #     # self.model.eval()
 
-    def save(self, path: Path) -> None:
+    def save(self, path: Path, epoch: int) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(self.state_dict(), path)
+        torch.save(
+            {
+                "epoch": epoch,
+                "model": self.state_dict(),
+                "optimizer": self.optimizer.state_dict(),
+            },
+            path,
+        )
 
     def load(self, path: Path) -> None:
         self.load_state_dict(torch.load(path, map_location="cpu"))

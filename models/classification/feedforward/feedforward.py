@@ -53,7 +53,7 @@ class FNNModel(BaseTorchModel, BaseClassificationModel):
 
         self.layers = nn.ModuleList(layers)
 
-        super().__init__(model_path=model_path, kwargs=kwargs)
+        super().__init__(model_path=model_path, **kwargs)
 
     def forward(self, X: Tensor) -> Tensor:
         out = X

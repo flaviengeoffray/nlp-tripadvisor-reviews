@@ -1,9 +1,10 @@
 import math
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, Optional, Tuple
 import torch
 from torch import nn
 from torch import Tensor
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from data.datasets.TripAdvisorDataset import TripAdvisorDataset
 
@@ -53,7 +54,7 @@ class PositionalEncoding(nn.Module):
         )  # (max_len, 1)
 
         div_term = torch.exp(
-            torch.arange(0, d_model, 2).float * (-math.log(10000.0) / d_model)
+            torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model)
         )
 
         pe[:, 0::2] = torch.sin(position * div_term)
@@ -103,7 +104,7 @@ class FeedForward(nn.Module):
         self.l2: nn.Module = nn.Linear(d_ff, d_model)
 
     def forward(self, X: Tensor) -> Tensor:
-        return self.l2(self.dropout(torch.relu(self.l2(X))))  # (B, seq_len, d_model)
+        return self.l2(self.dropout(torch.relu(self.l1(X))))  # (B, seq_len, d_model)
 
 
 class MultiHeadAttention(nn.Module):
@@ -126,7 +127,9 @@ class MultiHeadAttention(nn.Module):
 
         self.w_o: nn.Module = nn.Linear(d_model, d_model)  # Output
 
-    def forward(self, Q: Tensor, K: Tensor, V: Tensor, mask: Tensor) -> Tensor:
+    def forward(
+        self, Q: Tensor, K: Tensor, V: Tensor, mask: Optional[Tensor]
+    ) -> Tensor:
         Q = self.w_q(Q)  # (B, seq_len, d_model)
         K = self.w_k(K)  # (B, seq_len, d_model)
         V = self.w_v(V)  # (B, seq_len, d_model)
@@ -151,7 +154,11 @@ class MultiHeadAttention(nn.Module):
 
     @staticmethod
     def attention(
-        Q: Tensor, K: Tensor, V: Tensor, mask: Tensor, dropout: nn.Dropout
+        Q: Tensor,
+        K: Tensor,
+        V: Tensor,
+        mask: Optional[Tensor],
+        dropout: Optional[nn.Dropout],
     ) -> Tuple[Tensor, Tensor]:
 
         d_k = Q.shape[-1]
@@ -159,11 +166,11 @@ class MultiHeadAttention(nn.Module):
         scores = (Q @ K.transpose(-2, -1)) / math.sqrt(d_k)  # (B, h, seq_len, seq_len)
 
         # Mask some values by a really small value to get the output of softmax near 0 for those values.
-        if mask:
+        if mask is not None:
             scores.masked_fill_(mask == 0, -1e9)
 
         scores = scores.softmax(dim=-1)  # (B, h, seq_len, seq_len)
-        if dropout:
+        if dropout is not None:
             scores = dropout(scores)
 
         return scores @ V, scores  # (B, h, seq_len, d_k), (B, h, seq_len, seq_len)
@@ -348,7 +355,8 @@ class Projection(nn.Module):
 class Transformer(BaseTorchModel, BaseGenerativeModel):
 
     def __init__(self, model_path, **kwargs):
-        super().__init__(model_path, **kwargs)
+        # super().__init__(model_path, **kwargs)
+        nn.Module.__init__(self)
 
         self.vocab_size: int = kwargs.pop("vocab_size", 30000)
         self.d_model: int = kwargs.pop("d_model", 512)
@@ -380,7 +388,7 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
                 FeedForward(self.d_model, self.d_ff, self.dropout),
                 self.dropout,
             )
-            for _ in self.N
+            for _ in range(self.N)
         ]
         self.encoder: Encoder = Encoder(nn.ModuleList(encoder_blocks))
 
@@ -392,7 +400,7 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
                 FeedForward(self.d_model, self.d_ff, self.dropout),
                 self.dropout,
             )
-            for _ in self.N
+            for _ in range(self.N)
         ]
 
         self.decoder: Decoder = Decoder(nn.ModuleList(decoder_blocks))
@@ -402,12 +410,21 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
 
         # TODO: init params with xavier_uniform
 
+        super().__init__(model_path=model_path, **kwargs)
+
+        self.criterion: nn.Module = kwargs.pop(
+            "criterion",
+            nn.CrossEntropyLoss(
+                ignore_index=self.tokenizer.token_to_id("[PAD]"), label_smoothing=0.1
+            ),
+        ).to(self.device)
+
     def encode(self, source: Tensor, source_mask: Tensor) -> Tensor:
 
         source = self.input_embedding(source)
         source = self.source_position(source)
 
-        return self.encoder(source)
+        return self.encoder(source, source_mask)
 
     def decode(
         self,
@@ -469,4 +486,119 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
         y_val: Any,
     ) -> None:
 
-        return
+        self.to(self.device)
+        patience_counter = 0
+        best_val_loss = float("inf")
+
+        train_loader, val_loader = self._get_dataloaders(X_train, y_train, X_val, y_val)
+
+        for epoch in range(self.epochs):
+
+            self.train()
+            train_loss = 0.0
+
+            for B in tqdm(
+                train_loader, desc=f"Processing epoch: {epoch}/{self.epochs}"
+            ):
+
+                self.optimizer.zero_grad()
+
+                encoder_input: Tensor = B["encoder_input"].to(
+                    self.device
+                )  # (B, seq_len)
+                decoder_input: Tensor = B["decoder_input"].to(
+                    self.device
+                )  # (B, seq_len)
+                encoder_mask: Tensor = B["encoder_mask"].to(
+                    self.device
+                )  # (B, 1, 1, seq_len)
+                decoder_mask: Tensor = B["decoder_mask"].to(
+                    self.device
+                )  # (B, 1, seq_len, seq_len)
+
+                encoder_output: Tensor = self.encode(
+                    encoder_input, encoder_mask
+                )  # (B, seq_len, d_model)
+                decoder_output: Tensor = self.decode(
+                    encoder_output, encoder_mask, decoder_input, decoder_mask
+                )  # (B, seq_len, d_model)
+
+                projection_output: Tensor = self.project(
+                    decoder_output
+                )  # (B, seq_len, vocab_size)
+
+                label: Tensor = B["label"].to(self.device)  # (B, seq_len)
+
+                loss: Tensor = self.criterion(
+                    projection_output.view(-1, self.vocab_size), label.view(-1)
+                )
+
+                loss.backward()
+                self.optimizer.step()
+
+                train_loss += loss.item()
+
+                self.save(self.model_path / "last_model.pt", epoch)
+
+            train_loss = train_loss / len(train_loader)
+
+            # self.eval()
+            # val_loss = 0.0
+
+            # all_preds: List[np.ndarray] = []
+            # all_labels: List[int] = []
+
+            # with torch.no_grad():
+            #     for X, y in val_loader:
+            #         X, y = X.to(self.device), y.to(self.device)
+            #         outputs = self.forward(X)
+
+            #         all_preds.append(outputs.detach().cpu().numpy())
+            #         all_labels.extend(y.cpu().numpy().tolist())
+
+            #         loss = self.criterion(outputs, y)
+            #         val_loss += loss.item()
+            # val_loss /= len(val_loader)
+
+            # all_preds: np.ndarray = np.concatenate(all_preds, axis=0)
+            # all_labels: np.ndarray = np.array(all_labels, dtype=int)
+
+            # print(
+            #     f"Epoch {epoch+1}/{self.epochs} — Train Loss: {train_loss:.4f} — Val Loss: {val_loss:.4f}"
+            # )
+
+            # metrics: Dict[str, float] = self.evaluate(
+            #     X=None, y=all_labels, y_pred=all_preds
+            # )
+
+            # print(
+            #     "Val Metrics — ",
+            #     ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()),
+            # )
+
+            # from utils import save_metrics  # FIXME: Crado
+
+            # save_metrics(
+            #     metrics=metrics,
+            #     epoch=epoch,
+            #     path=self.model_path / "train_metrics.json",
+            # )
+
+            # if self.scheduler:
+            #     self.scheduler.step(val_loss)
+
+            # if val_loss < best_val_loss:
+            #     best_val_loss = val_loss
+            #     patience_counter = 0
+            #     self.save(self.model_path / "best_model.pt")
+            # else:
+            #     patience_counter += 1
+            #     if patience_counter >= self.patience:
+            #         print(f"Early stopping at epoch {epoch+1}.")
+            #         break
+
+    def generate(self, input_data: Optional[Any] = None) -> Any:
+        """
+        Generate a sentence from an input data.
+        """
+        pass

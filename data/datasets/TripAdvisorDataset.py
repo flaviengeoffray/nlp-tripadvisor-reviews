@@ -46,16 +46,16 @@ class TripAdvisorDataset(Dataset):
 
         # self.sos_id: Optional[int] = tokenizer.token_to_id("[SOS]")
         # self.eos_id: Optional[int] = tokenizer.token_to_id("[EOS]")
-
-        self.sos: Tensor = torch.Tensor(
-            [tokenizer.token_to_id("[SOS]")], dtype=torch.int64
+        print(self.tokenizer.token_to_id("[SOS]"))
+        self.sos: Tensor = torch.tensor(
+            [self.tokenizer.token_to_id("[SOS]")], dtype=torch.int64
         )
-        self.eos: Tensor = torch.Tensor(
-            [tokenizer.token_to_id("[EOS]")], dtype=torch.int64
+        self.eos: Tensor = torch.tensor(
+            [self.tokenizer.token_to_id("[EOS]")], dtype=torch.int64
         )
 
-        self.pad: Tensor = torch.Tensor(
-            [tokenizer.token_to_id("[PAD]")], dtype=torch.int64
+        self.pad: Tensor = torch.tensor(
+            [self.tokenizer.token_to_id("[PAD]")], dtype=torch.int64
         )
 
     def __len__(self) -> int:
@@ -113,7 +113,7 @@ class TripAdvisorDataset(Dataset):
         # target_ids = target_ids + [self.eos_id]
         return {
             "encoder_input": encoder_input,  # (seq_len)
-            "decder_input": decoder_input,  # (seq_len)
+            "decoder_input": decoder_input,  # (seq_len)
             "encoder_mask": (encoder_input != self.pad)
             .unsqueeze(0)
             .unsqueeze(0)
