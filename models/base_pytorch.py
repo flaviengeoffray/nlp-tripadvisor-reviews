@@ -43,6 +43,8 @@ class BaseTorchModel(nn.Module, BaseModel):
         print(f"Using device: {self.device.type}")
         if self.device.type == "cuda":
             print(f"    Device name: {torch.cuda.get_device_name(self.device)}")
+        self.to(self.device)
+
         self.start_epoch: int = 0
         self.epochs: int = kwargs.pop("epochs", 20)
         self.patience: int = kwargs.pop("patience", 5)
@@ -52,7 +54,7 @@ class BaseTorchModel(nn.Module, BaseModel):
         )
         self.optimizer: torch.optim.Optimizer = kwargs.pop(
             "optimizer", torch.optim.Adam(self.parameters(), lr=lr)
-        ).to(self.device)
+        )
         self.batch_size = kwargs.pop("batch_size", 32)
 
         scheduler: bool = kwargs.pop("scheduler", True)
