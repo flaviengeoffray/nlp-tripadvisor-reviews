@@ -298,7 +298,7 @@ def evaluate_model(model, test_data, vocab, device="cpu"):
     print(f"ROUGE-2 F1: {avg_metrics['ROUGE-2']['f1']:.4f}")
     print(f"ROUGE-L F1: {avg_metrics['ROUGE-L']['f1']:.4f}")
     print(f"BLEU: {avg_metrics['BLEU']:.4f}")
-    print(f"Similarité sémantique: {avg_metrics['Semantic_Similarity']:.4f}")
+    #print(f"Similarité sémantique: {avg_metrics['Semantic_Similarity']:.4f}")
     
     return avg_metrics
 
