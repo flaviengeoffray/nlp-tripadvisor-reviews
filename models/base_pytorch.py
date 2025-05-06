@@ -52,7 +52,7 @@ class BaseTorchModel(nn.Module, BaseModel):
         )
         self.optimizer: torch.optim.Optimizer = kwargs.pop(
             "optimizer", torch.optim.Adam(self.parameters(), lr=lr)
-        )
+        ).to(self.device)
         self.batch_size = kwargs.pop("batch_size", 32)
 
         scheduler: bool = kwargs.pop("scheduler", True)
