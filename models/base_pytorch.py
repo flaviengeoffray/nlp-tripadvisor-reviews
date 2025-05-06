@@ -1,4 +1,5 @@
 from pathlib import Path
+from abc import abstractmethod
 from typing import Any, List, Literal, Tuple, Union, Dict
 
 import numpy as np
@@ -11,6 +12,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
 
 from .base import BaseModel
+from data.tokenizers.base import BaseTokenizer
 
 # @dataclass
 # class BaseModelConfig:
@@ -44,6 +46,8 @@ class BaseTorchModel(nn.Module, BaseModel):
         if self.device.type == "cuda":
             print(f"    Device name: {torch.cuda.get_device_name(self.device)}")
         self.to(self.device)
+
+        self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", None)
 
         self.start_epoch: int = 0
         self.epochs: int = kwargs.pop("epochs", 20)
@@ -132,35 +136,39 @@ class BaseTorchModel(nn.Module, BaseModel):
             self.train()
             train_loss = 0.0
 
-            for X, y in tqdm(
-                train_loader, desc=f"Processing epoch: {epoch}/{self.epochs}"
-            ):
-                X, y = X.to(self.device), y.to(self.device)
-                self.optimizer.zero_grad()
-                outputs = self.forward(X)
-                loss = self.criterion(outputs, y)
-                loss.backward()
-                self.optimizer.step()
-                train_loss += loss.item()
+            # for X, y in tqdm(
+            #     train_loader, desc=f"Processing epoch: {epoch}/{self.epochs}"
+            # ):
+            #     X, y = X.to(self.device), y.to(self.device)
+            #     self.optimizer.zero_grad()
+            #     outputs = self.forward(X)
+            #     loss = self.criterion(outputs, y)
+            #     loss.backward()
+            #     self.optimizer.step()
+            #     train_loss += loss.item()
+            train_loss = self._train_loop(train_loader, epoch)
 
             train_loss = train_loss / len(train_loader)
 
             self.eval()
-            val_loss = 0.0
+            # val_loss = 0.0
 
-            all_preds: List[np.ndarray] = []
-            all_labels: List[int] = []
+            # all_preds: List[np.ndarray] = []
+            # all_labels: List[int] = []
 
-            with torch.no_grad():
-                for X, y in val_loader:
-                    X, y = X.to(self.device), y.to(self.device)
-                    outputs = self.forward(X)
+            # with torch.no_grad():
+            #     for X, y in val_loader:
+            #         X, y = X.to(self.device), y.to(self.device)
+            #         outputs = self.forward(X)
 
-                    all_preds.append(outputs.detach().cpu().numpy())
-                    all_labels.extend(y.cpu().numpy().tolist())
+            #         all_preds.append(outputs.detach().cpu().numpy())
+            #         all_labels.extend(y.cpu().numpy().tolist())
 
-                    loss = self.criterion(outputs, y)
-                    val_loss += loss.item()
+            #         loss = self.criterion(outputs, y)
+            #         val_loss += loss.item()
+
+            all_preds, all_labels, val_loss = self._val_loop(val_loader)
+
             val_loss /= len(val_loader)
 
             all_preds: np.ndarray = np.concatenate(all_preds, axis=0)
@@ -239,3 +247,13 @@ class BaseTorchModel(nn.Module, BaseModel):
         self.optimizer.load_state_dict(state["optimizer"])
         self.start_epoch = state["epoch"] + 1
         self.to(self.device)
+
+    @abstractmethod
+    def _train_loop(self, train_loader: DataLoader, epoch: int) -> float:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _val_loop(
+        self, val_loader: DataLoader
+    ) -> Tuple[List[np.ndarray], List[int], float]:
+        raise NotImplementedError

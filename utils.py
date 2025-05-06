@@ -12,6 +12,7 @@ from data.tokenizers.base import BaseTokenizer
 from data.tokenizers.bpe import BpeTokenizer
 from vectorizers.base import BaseVectorizer
 from vectorizers.tfidf import TfidfVectorizer
+
 from vectorizers.word2vec import Word2VecVectorizer
 
 from models.classification.logistic_regression.logistic_regression import (
@@ -32,7 +33,7 @@ CLASSIFICATION_REGISTRY = {
     "logistic-regression": LogisticRegressionModel,
     "feedforward": FNNModel,
     "rnn": RNNModel,
-    "lstm": LSTMModel
+    "lstm": LSTMModel,
 }
 
 GENERATIVE_REGISTRY = {"transformer": Transformer}

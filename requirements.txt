@@ -8,3 +8,4 @@ torch
 scipy
 numpy
 torchmetrics
+gensim

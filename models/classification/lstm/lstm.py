@@ -1,13 +1,17 @@
 from pathlib import Path
-from typing import Dict, List, Union, Any
+from typing import Dict, List, Tuple, Union, Any
 
 import numpy as np
 import torch
 from torch import Tensor
 from torch import nn
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from models.base_pytorch import BaseTorchModel
 from models.classification.base import BaseClassificationModel
+from data.datasets.TextDataset import TextDataset
+
 
 class LSTMModel(BaseTorchModel, BaseClassificationModel):
     def __init__(
@@ -28,13 +32,15 @@ class LSTMModel(BaseTorchModel, BaseClassificationModel):
         self.num_layers = num_layers
         self.bidirectional = bidirectional
 
+        # self.embedding = nn.Embedding(input_dim, 100, padding_idx=pad_idx)
+
         self.lstm = nn.LSTM(
             input_size=input_dim,
             hidden_size=hidden_dim,
             num_layers=num_layers,
             dropout=dropout_rate if num_layers > 1 else 0,
             bidirectional=bidirectional,
-            batch_first=True
+            batch_first=True,
         )
 
         self.fc = nn.Linear(hidden_dim * (2 if bidirectional else 1), output_dim)
@@ -46,12 +52,11 @@ class LSTMModel(BaseTorchModel, BaseClassificationModel):
         if X.dim() == 2:
             X = X.unsqueeze(1)  # [batch_size, 1000, 1]
 
-
         h0 = torch.zeros(
             self.num_layers * (2 if self.bidirectional else 1),
             X.size(0),
             self.hidden_dim,
-            device=X.device
+            device=X.device,
         )
         c0 = torch.zeros_like(h0)
 
@@ -71,3 +76,53 @@ class LSTMModel(BaseTorchModel, BaseClassificationModel):
             outputs = self.forward(X)
             preds = torch.argmax(outputs, dim=1)
         return preds.cpu().numpy()
+
+    def _get_dataloaders(
+        self,
+        X_train: Any,
+        y_train: Any,
+        X_val: Any,
+        y_val: Any,
+        shuffle: bool = True,
+    ) -> Tuple[DataLoader, DataLoader]:
+
+        if not hasattr(X_train, "tolist") or not hasattr(y_train, "tolist"):
+            raise ValueError("X_train and y_train needs to by numpy arrays")
+
+        # if nmo
+
+        train_ds = TextDataset(
+            texts=X_train.tolist(),
+            labels=y_train.tolist(),
+            tokenizer=self.tokenizer,
+            max_len=512,
+        )
+
+        if not hasattr(X_val, "tolist") or not hasattr(y_val, "tolist"):
+            raise ValueError("X_val and y_val needs to by numpy arrays")
+
+        val_ds = TextDataset(
+            texts=X_val.tolist(),
+            labels=y_val.tolist(),
+            tokenizer=self.tokenizer,
+            max_len=512,
+        )
+
+        train_loader = DataLoader(train_ds, batch_size=self.batch_size, shuffle=shuffle)
+        val_loader = DataLoader(val_ds, batch_size=self.batch_size, shuffle=True)
+
+        return train_loader, val_loader
+
+    def _train_loop(self, train_loader: DataLoader, epoch: int) -> float:
+        train_loss: float = 0.0
+        for B in tqdm(train_loader, desc=f"Processing epoch: {epoch}/{self.epochs}"):
+            # X, y = X.to(self.device), y.to(self.device)
+            X = B["input_ids"].to(self.device)
+            y = B["label"].to(self.device)
+            self.optimizer.zero_grad()
+            outputs = self.forward(X)
+            loss = self.criterion(outputs, y)
+            loss.backward()
+            self.optimizer.step()
+            train_loss += loss.item()
+        return train_loss

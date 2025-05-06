@@ -1,23 +1,64 @@
+from pathlib import Path
 from typing import Any, Optional, Sequence
-from .base import BaseVectorizer
+
+from gensim.models import Word2Vec
+from gensim.utils import simple_preprocess
+
+from vectorizers.base import BaseVectorizer
 
 
 class Word2VecVectorizer(BaseVectorizer):
-
-    def __init__(self, **kwargs: Any) -> None:
-        self.vectorizer = None
+    def __init__(self, **kwargs):
+        self.vector_size = kwargs.pop("vector_size", 100)
+        self.window = kwargs.pop("window", 5)
+        self.min_count = kwargs.pop("min_count", 1)
+        self.workers = kwargs.pop("workers", 4)
+        self.model: Optional[Word2Vec] = None
 
     def fit(self, texts: Sequence[str], y: Optional[Any] = None) -> None:
-        pass
+        sentences = [simple_preprocess(text) for text in texts]
+        self.model = Word2Vec(
+            sentences=sentences,
+            vector_size=self.vector_size,
+            window=self.window,
+            min_count=self.min_count,
+            workers=self.workers,
+        )
 
-    def transform(self, texts: Sequence[str]) -> Any:
-        pass
+    def transform(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
+        if self.model is None:
+            raise ValueError("Word2Vec model has not been fitted yet.")
+        sentences = [simple_preprocess(text) for text in texts]
+        return [self._average_vector(tokens) for tokens in sentences]
 
-    def inverse_transform(self, vectors: Any) -> Sequence[Sequence[str]]:
-        pass
+    def _average_vector(self, tokens: Sequence[str]) -> Sequence[float]:
+        vectors = [self.model.wv[word] for word in tokens if word in self.model.wv]
+        if not vectors:
+            return [0.0] * self.vector_size
+        mean = sum(vectors) / len(vectors)
+        return mean.tolist() if hasattr(mean, "tolist") else list(mean)
 
-    def save(self, path: str) -> None:
-        pass
+    def inverse_transform(
+        self, vectors: Sequence[Sequence[float]]
+    ) -> Sequence[Sequence[str]]:
+        if self.model is None:
+            raise ValueError("Word2Vec model has not been fitted yet.")
+        topn = (self.config.params or {}).get("topn", 10)
+        results = []
+        for vec in vectors:
+            similar = self.model.wv.similar_by_vector(vec, topn=topn)
+            words = [word for word, _ in similar]
+            results.append(words)
+        return results
 
-    def load(self, path: str) -> None:
-        pass
+    def save(self, path: Path) -> None:
+        if self.model is None:
+            raise ValueError("No model available to save.")
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.model.save(str(path))
+
+    def load(self, path: Path) -> None:
+        path = Path(path)
+        self.model = Word2Vec.load(str(path))
+        self.vector_size = self.model.vector_size
