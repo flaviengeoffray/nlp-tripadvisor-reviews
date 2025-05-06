@@ -94,7 +94,30 @@ class WordLevelReviewDataset(Dataset):
         }
 
 def collate_fn(batch):
-    """Custom collate function for variable length sequences"""
+    """
+    Custom collate function for handling variable-length sequences in a batch.
+    This function processes a batch of data to prepare it for input into a model. 
+    It performs the following steps:
+    - Stacks the 'features' tensors from each item in the batch.
+    - Pads the 'title' and 'review' sequences to ensure uniform length across the batch.
+    - Ensures the resulting tensors are stored in contiguous memory for efficient computation.
+    - Splits the padded 'review' sequences into input (all tokens except the last) 
+      and target (all tokens except the first) sequences for training.
+    Args:
+        batch (list of dict): A batch of data where each item is a dictionary containing:
+            - 'features' (torch.Tensor): Feature tensor for the item.
+            - 'title' (torch.Tensor): Title sequence tensor for the item.
+            - 'review' (torch.Tensor): Review sequence tensor for the item.
+    Returns:
+        tuple: A tuple containing:
+            - batch_features (torch.Tensor): Stacked feature tensors for the batch.
+            - batch_titles (torch.Tensor): Padded title sequences for the batch.
+            - reviews_input (torch.Tensor): Input sequences for the reviews (all but last token).
+            - reviews_target (torch.Tensor): Target sequences for the reviews (all but first token).
+    # Utility: This function is essential for preparing variable-length sequence data 
+    # for training models, ensuring uniformity and efficiency in batch processing.
+    """
+
     batch_features = torch.stack([item['features'] for item in batch])
     batch_titles = nn.utils.rnn.pad_sequence([item['title'] for item in batch], batch_first=True, padding_value=0)
     batch_reviews = nn.utils.rnn.pad_sequence([item['review'] for item in batch], batch_first=True, padding_value=0)
