@@ -6,6 +6,7 @@ __pycache__/
 # Checkpoints
 
 *.bz2
+*.pt
 
 # C extensions
 *.so

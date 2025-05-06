@@ -40,6 +40,9 @@ class BaseTorchModel(nn.Module, BaseModel):
         lr: float = kwargs.pop("lr", 1e-4)
 
         self.device = torch.device(kwargs.pop("device", "cpu"))
+        print(f"Using device: {self.device.type}")
+        if self.device.type == "cuda":
+            print(f"    Device name: {torch.cuda.get_device_name(self.device)}")
         self.epochs = kwargs.pop("epochs", 20)
         self.patience = kwargs.pop("patience", 5)
         # self.model: nn.Module = kwargs.pop("model", None)
