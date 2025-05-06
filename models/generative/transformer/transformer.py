@@ -650,7 +650,7 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
             )
 
             # This is a greedy decoding since we always take the max probable token
-            next_token = torch.max(self.project(decoder_output[:, -1]), dim=-1)
+            next_token = torch.max(self.project(decoder_output[:, -1]), dim=-1)[1]
 
             decoder_input = torch.cat(
                 [
