@@ -1,12 +1,15 @@
 import math
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 import torch
 from torch import nn
 from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from data.datasets.TripAdvisorDataset import TripAdvisorDataset
+# import torchmetrics
+# from torch.utils.tensorboard import SummaryWriter
+
+from data.datasets.TripAdvisorDataset import TripAdvisorDataset, causal_mask
 
 from data.tokenizers.base import BaseTokenizer
 from data.tokenizers.bpe import BpeTokenizer
@@ -487,13 +490,13 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
     ) -> None:
 
         self.to(self.device)
-        patience_counter = 0
-        best_val_loss = float("inf")
+        # patience_counter = 0
+        # best_val_loss = float("inf")
 
         train_loader, val_loader = self._get_dataloaders(X_train, y_train, X_val, y_val)
 
-        for epoch in range(self.epochs):
-
+        for epoch in range(self.start_epoch, self.epochs):
+            torch.cuda.empty_cache()
             self.train()
             train_loss = 0.0
 
@@ -542,47 +545,71 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
 
             train_loss = train_loss / len(train_loader)
 
-            # self.eval()
+            self.eval()
             # val_loss = 0.0
 
-            # all_preds: List[np.ndarray] = []
-            # all_labels: List[int] = []
+            source_texts = []
+            expected_texts = []
+            preds = []
 
-            # with torch.no_grad():
-            #     for X, y in val_loader:
-            #         X, y = X.to(self.device), y.to(self.device)
-            #         outputs = self.forward(X)
+            with torch.no_grad():
+                for B in val_loader:
+                    encoder_input: Tensor = B["encoder_input"].to(
+                        self.device
+                    )  # (B, seq_len)
+                    encoder_mask: Tensor = B["encoder_mask"].to(
+                        self.device
+                    )  # (B, 1, 1, seq_len)
 
-            #         all_preds.append(outputs.detach().cpu().numpy())
-            #         all_labels.extend(y.cpu().numpy().tolist())
+                    label: Tensor = B["label"].to(self.device)  # (B, seq_len)
 
-            #         loss = self.criterion(outputs, y)
-            #         val_loss += loss.item()
+                    assert (
+                        encoder_input.size(0) == 1
+                    ), "Validation batch size must be equals to 1."
+
+                    output: Tensor = self.inference(encoder_input, encoder_mask)
+                    output_text = self.tokenizer.decode(output.detach().cpu().tolist())
+
+                    source_text = B["source_text"][0]
+                    target_text = B["target_text"][0]
+
+                    source_texts.append(source_text)
+                    expected_texts.append(target_text)
+                    preds.append(output_text)
+
+                    print(f"SOURCE: {source_text}")
+                    print(f"TARGET: {target_text}")
+                    print(f"PREDICTED: {output_text}")
+
+                    # loss: Tensor = self.criterion(
+                    #     projection_output.view(-1, self.vocab_size), label.view(-1)
+                    # )
+                    # val_loss += loss.item()
             # val_loss /= len(val_loader)
 
             # all_preds: np.ndarray = np.concatenate(all_preds, axis=0)
             # all_labels: np.ndarray = np.array(all_labels, dtype=int)
 
-            # print(
-            #     f"Epoch {epoch+1}/{self.epochs} — Train Loss: {train_loss:.4f} — Val Loss: {val_loss:.4f}"
-            # )
+            print(
+                f"Epoch {epoch+1}/{self.epochs} — Train Loss: {train_loss:.4f}"  # — Val Loss: {val_loss:.4f}"
+            )
 
-            # metrics: Dict[str, float] = self.evaluate(
-            #     X=None, y=all_labels, y_pred=all_preds
-            # )
+            metrics: Dict[str, float] = self.evaluate(
+                X=source_texts, y=expected_texts, y_pred=preds
+            )
 
-            # print(
-            #     "Val Metrics — ",
-            #     ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()),
-            # )
+            print(
+                "Val Metrics — ",
+                ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()),
+            )
 
-            # from utils import save_metrics  # FIXME: Crado
+            from utils import save_metrics  # FIXME: Crado
 
-            # save_metrics(
-            #     metrics=metrics,
-            #     epoch=epoch,
-            #     path=self.model_path / "train_metrics.json",
-            # )
+            save_metrics(
+                metrics=metrics,
+                epoch=epoch,
+                path=self.model_path / "train_metrics.json",
+            )
 
             # if self.scheduler:
             #     self.scheduler.step(val_loss)
@@ -597,8 +624,84 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
             #         print(f"Early stopping at epoch {epoch+1}.")
             #         break
 
-    def generate(self, input_data: Optional[Any] = None) -> Any:
+    def inference(self, encoder_input: Tensor, encoder_mask: Tensor) -> Tensor:
+
+        sos = self.tokenizer.token_to_id("[SOS]")
+        eos = self.tokenizer.token_to_id("[EOS]")
+
+        encoder_output: Tensor = self.encode(encoder_input, encoder_mask)
+
+        decoder_input: Tensor = (
+            torch.empty(1, 1).fill_(sos).type_as(encoder_input).to(self.device)
+        )
+
+        while True:
+            if decoder_input.size(1) == self.max_target_len:
+                break
+
+            decoder_mask = (
+                causal_mask(decoder_input.size(1))
+                .type_as(encoder_input)
+                .to(self.device)
+            )
+
+            decoder_output = self.decode(
+                encoder_output, encoder_mask, decoder_input, decoder_mask
+            )
+
+            # This is a greedy decoding since we always take the max probable token
+            next_token = torch.max(self.project(decoder_output[:, -1]), dim=-1)
+
+            decoder_input = torch.cat(
+                [
+                    decoder_input,
+                    torch.empty(1, 1)
+                    .type_as(encoder_input)
+                    .fill_(next_token.item())
+                    .to(self.device),
+                ],
+                dim=1,
+            )
+
+            if next_token == eos:
+                break
+
+        return decoder_input.squeeze(0)
+
+    def generate(self, prompt: Optional[Any] = None) -> Any:
         """
         Generate a sentence from an input data.
         """
-        pass
+        self.eval()
+
+        sos: Tensor = torch.tensor(
+            [self.tokenizer.token_to_id("[SOS]")], dtype=torch.int64
+        )
+        eos: Tensor = torch.tensor(
+            [self.tokenizer.token_to_id("[EOS]")], dtype=torch.int64
+        )
+        pad: Tensor = torch.tensor(
+            [self.tokenizer.token_to_id("[PAD]")], dtype=torch.int64
+        )
+
+        source_tokens = self.tokenizer.encode(prompt)[: self.max_input_len]
+
+        source_padding_len = self.max_target_len - len(source_tokens) - 2
+
+        if source_padding_len < 0:
+            raise ValueError("Sentence length error")
+
+        encoder_input: Tensor = torch.cat(
+            [
+                sos,
+                torch.tensor(source_tokens, dtype=torch.int64),
+                eos,
+                torch.tensor([pad] * source_padding_len, dtype=torch.int64),
+            ]
+        )
+        encoder_mask: Tensor = (encoder_input != pad).unsqueeze(0).unsqueeze(0).int()
+
+        with torch.no_grad():
+            output = self.inference(encoder_input, encoder_mask)
+
+        return self.tokenizer.decode(output.detach().cpu().tolist())

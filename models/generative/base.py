@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional, Union
 
 import numpy as np
 from torch import Tensor
+import torchmetrics
 
 # import torch
 # from torch import Tensor
@@ -27,4 +28,17 @@ class BaseGenerativeModel(BaseModel, ABC):
         y: Union[np.ndarray, Tensor],
         y_pred: Union[np.ndarray, Tensor] = None,
     ) -> Dict[str, float]:
-        pass
+        metric = torchmetrics.CharErrorRate()
+        cer = metric(y_pred, y)
+
+        metric = torchmetrics.WordErrorRate()
+        wer = metric(y_pred, y)
+
+        metric = torchmetrics.BLEUScore()
+        bleu = metric(y_pred, y)
+
+        return {
+            "cer": cer,
+            "wer": wer,
+            "bleu": bleu,
+        }

@@ -7,3 +7,4 @@ tokenizers
 torch
 scipy
 numpy
+torchmetrics

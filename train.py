@@ -22,12 +22,12 @@ def main(config_path: str):
     if config.tokenizer:
         tokenizer = load_tokenizer(config.tokenizer)
         if config.tokenizer.checkpoint:
-            tokenizer.load(config.tokenizer.checkpoint)
+            tokenizer.load(str(config.tokenizer.checkpoint))
         else:
             tokenizer.fit(X_train)
+            tokenizer.save(str(config.model_path / "tokenizer.json"))
 
         config.model.params["tokenizer"] = tokenizer
-        # Use the tokenizer.save to save it
 
     if config.vectorizer:
         vectorizer = load_vectorizer(config.vectorizer)
@@ -36,13 +36,15 @@ def main(config_path: str):
             vectorizer.load(config.vectorizer.checkpoint)
         else:
             vectorizer.fit(X_train)
+            vectorizer.save(config.model_path / "vectorizer.bz2")
 
         X_train = vectorizer.transform(X_train)
         X_val = vectorizer.transform(X_val)
 
-        vectorizer.save(config.model_path / "vectorizer.bz2")
-
     model: BaseModel = load_model(config.model, config.model_path)
+
+    if config.model.checkpoint:
+        model.load(config.model.checkpoint)
 
     model.fit(X_train, y_train, X_val, y_val)
 

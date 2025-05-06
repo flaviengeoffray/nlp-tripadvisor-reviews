@@ -43,8 +43,9 @@ class BaseTorchModel(nn.Module, BaseModel):
         print(f"Using device: {self.device.type}")
         if self.device.type == "cuda":
             print(f"    Device name: {torch.cuda.get_device_name(self.device)}")
-        self.epochs = kwargs.pop("epochs", 20)
-        self.patience = kwargs.pop("patience", 5)
+        self.start_epoch: int = 0
+        self.epochs: int = kwargs.pop("epochs", 20)
+        self.patience: int = kwargs.pop("patience", 5)
         # self.model: nn.Module = kwargs.pop("model", None)
         self.criterion: nn.Module = kwargs.pop("criterion", nn.CrossEntropyLoss()).to(
             self.device
@@ -124,8 +125,8 @@ class BaseTorchModel(nn.Module, BaseModel):
 
         train_loader, val_loader = self._get_dataloaders(X_train, y_train, X_val, y_val)
 
-        for epoch in range(self.epochs):
-
+        for epoch in range(self.start_epoch, self.epochs):
+            torch.cuda.empty_cache()
             self.train()
             train_loss = 0.0
 
@@ -231,5 +232,8 @@ class BaseTorchModel(nn.Module, BaseModel):
         )
 
     def load(self, path: Path) -> None:
-        self.load_state_dict(torch.load(path, map_location="cpu"))
+        state = torch.load(path, map_location="cpu")
+        self.load_state_dict(state["model"])
+        self.optimizer.load_state_dict(state["optimizer"])
+        self.start_epoch = state["epoch"] + 1
         self.to(self.device)

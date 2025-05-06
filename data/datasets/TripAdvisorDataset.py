@@ -46,7 +46,7 @@ class TripAdvisorDataset(Dataset):
 
         # self.sos_id: Optional[int] = tokenizer.token_to_id("[SOS]")
         # self.eos_id: Optional[int] = tokenizer.token_to_id("[EOS]")
-        print(self.tokenizer.token_to_id("[SOS]"))
+        # print(self.tokenizer.token_to_id("[SOS]"))
         self.sos: Tensor = torch.tensor(
             [self.tokenizer.token_to_id("[SOS]")], dtype=torch.int64
         )
