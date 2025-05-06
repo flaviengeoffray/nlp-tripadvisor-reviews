@@ -5,3 +5,5 @@ nltk
 ipykernel
 tokenizers
 torch
+scipy
+numpy

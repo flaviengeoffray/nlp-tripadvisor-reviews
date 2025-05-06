@@ -538,7 +538,7 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
 
                 train_loss += loss.item()
 
-                self.save(self.model_path / "last_model.pt", epoch)
+            self.save(self.model_path / "last_model.pt", epoch)
 
             train_loss = train_loss / len(train_loader)
 

@@ -1,0 +1,30 @@
+model_path: "examples/Lstm/"
+
+# tokenizer:
+#   type: "bpe"
+#   params:
+#     vocab_size: 20000
+#     min_frequency: 2
+
+vectorizer:
+  type: "tf-idf"
+  params:
+    max_features: 1000
+    stop_words: "english"
+    norm: "l2"
+    use_idf: true
+    smooth_idf: true
+    sublinear_tf: false
+
+model:
+  type: "lstm"
+  params:
+    input_dim: 1000
+    hidden_dim: 128
+    output_dim: 5
+    dropout_rate: 0.5
+    lr: 0.001
+    num_layers: 2
+    # scheduler: true
+    device: "cuda"
+
