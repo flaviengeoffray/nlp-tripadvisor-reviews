@@ -1,4 +1,5 @@
 import argparse
+import warnings
 from data.dataprep import prepare_data
 from models.base import BaseModel
 from utils import load_config, load_tokenizer, load_vectorizer, load_model
@@ -24,7 +25,9 @@ def main(config_path: str):
             tokenizer.load(config.tokenizer.checkpoint)
         else:
             tokenizer.fit(X_train)
-        # Use tokenizer.encode then tokenizer.save to save it
+
+        config.model.params["tokenizer"] = tokenizer
+        # Use the tokenizer.save to save it
 
     if config.vectorizer:
         vectorizer = load_vectorizer(config.vectorizer)
@@ -43,10 +46,11 @@ def main(config_path: str):
 
     model.fit(X_train, y_train, X_val, y_val)
 
-    model.save(config.model_path / "model.bz2")
+    # model.save(config.model_path / "model.bz2")
 
 
 if __name__ == "__main__":
+    warnings.filterwarnings("ignore")
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--config",

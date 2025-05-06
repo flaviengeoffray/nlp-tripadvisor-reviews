@@ -21,6 +21,8 @@ from models.classification.feedforward.feedforward import FNNModel
 from models.classification.rnn.rnn import RNNModel
 from models.classification.lstm.lstm import LSTMModel
 
+from models.generative.transformer.transformer import Transformer
+
 
 TOKENIZER_REGISTRY = {"bpe": BpeTokenizer}
 
@@ -33,7 +35,7 @@ CLASSIFICATION_REGISTRY = {
     "lstm": LSTMModel
 }
 
-GENERATIVE_REGISTRY = {}
+GENERATIVE_REGISTRY = {"transformer": Transformer}
 
 
 def load_config(path: str) -> Config:

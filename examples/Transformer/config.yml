@@ -1,0 +1,33 @@
+model_path: "examples/Transformer/"
+
+tokenizer:
+  type: "bpe"
+  params:
+    vocab_size: 10000
+    min_frequency: 2
+
+# vectorizer:
+#   type: "tf-idf"
+#   params:
+#     max_features: 1000
+#     stop_words: "english"
+#     norm: "l2"
+#     use_idf: true
+#     smooth_idf: true
+#     sublinear_tf: false
+
+model:
+  type: "transformer"
+  params:
+    vocab_size: 10000
+    batch_size: 8
+    epochs: 20
+    max_input_len: 32
+    max_target_len: 256
+    d_model: 128
+    N: 4
+    h: 8
+    lr: 0.0001
+    dropout: 0.1
+    device: "cuda"
+

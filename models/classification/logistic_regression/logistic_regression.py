@@ -37,6 +37,8 @@ class LogisticRegressionModel(BaseClassificationModel):
             metrics=metrics, epoch=None, path=self.model_path / "train_metrics.json"
         )
 
+        self.save(self.model_path / "model.bz2")
+
     def predict(self, X: Union[np.ndarray, Tensor]) -> np.ndarray:
         X = X.detach().cpu().numpy() if isinstance(X, Tensor) else X
         return self.model.predict(X)
