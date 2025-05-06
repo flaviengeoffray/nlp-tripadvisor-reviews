@@ -18,6 +18,8 @@ from models.classification.logistic_regression.logistic_regression import (
     LogisticRegressionModel,
 )
 from models.classification.feedforward.feedforward import FNNModel
+from models.classification.rnn.rnn import RNNModel
+from models.classification.lstm.lstm import LSTMModel
 
 from models.generative.transformer.transformer import Transformer
 
@@ -29,6 +31,8 @@ VECTORIZER_REGISTRY = {"tf-idf": TfidfVectorizer, "word2vec": Word2VecVectorizer
 CLASSIFICATION_REGISTRY = {
     "logistic-regression": LogisticRegressionModel,
     "feedforward": FNNModel,
+    "rnn": RNNModel,
+    "lstm": LSTMModel
 }
 
 GENERATIVE_REGISTRY = {"transformer": Transformer}
