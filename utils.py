@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict
 import yaml
 from data.tokenizers.base import TokenizerConfig
+from models.generative.feedforward.feedforward import FNNGenerativeModel
 from vectorizers.base import VectorizerConfig
 from models.base import BaseModelConfig, BaseModel
 from config import Config
@@ -27,6 +28,7 @@ VECTORIZER_REGISTRY = {"tf-idf": TfidfVectorizer, "word2vec": Word2VecVectorizer
 CLASSIFICATION_REGISTRY = {
     "logistic-regression": LogisticRegressionModel,
     "feedforward": FNNModel,
+    "feedforward-generation": FNNGenerativeModel,
 }
 
 GENERATIVE_REGISTRY = {}
