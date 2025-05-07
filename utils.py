@@ -33,6 +33,8 @@ VECTORIZER_REGISTRY = {"tf-idf": TfidfVectorizer, "word2vec": Word2VecVectorizer
 CLASSIFICATION_REGISTRY = {
     "logistic-regression": LogisticRegressionModel,
     "feedforward": FNNModel,
+    "rnn": RNNModel,
+    "lstm": LSTMModel,
 }
 
 GENERATIVE_REGISTRY = {
