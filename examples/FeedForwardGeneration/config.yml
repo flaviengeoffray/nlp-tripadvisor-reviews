@@ -1,7 +1,11 @@
 model_path: "examples/FeedForwardGeneration/"
 
-# Use your TripAdvisorDataset (needs prepare_data to emit review_text)
-
+tokenizer:
+  type: "bpe"
+  # checkpoint: "token"
+  params:
+    vocab_size: 10000
+    min_frequency: 2
 
 vectorizer:
   type: "tf-idf"
