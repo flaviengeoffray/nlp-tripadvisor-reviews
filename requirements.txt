@@ -5,3 +5,7 @@ nltk
 ipykernel
 tokenizers
 torch
+scipy
+numpy
+torchmetrics
+gensim

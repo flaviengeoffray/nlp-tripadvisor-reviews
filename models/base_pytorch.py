@@ -1,4 +1,5 @@
 from pathlib import Path
+from abc import abstractmethod
 from typing import Any, List, Literal, Tuple, Union, Dict
 
 import numpy as np
@@ -8,8 +9,10 @@ from torch import Tensor
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from tqdm import tqdm
 
 from .base import BaseModel
+from data.tokenizers.base import BaseTokenizer
 
 # @dataclass
 # class BaseModelConfig:
@@ -39,10 +42,20 @@ class BaseTorchModel(nn.Module, BaseModel):
         lr: float = kwargs.pop("lr", 1e-4)
 
         self.device = torch.device(kwargs.pop("device", "cpu"))
-        self.epochs = kwargs.pop("epochs", 20)
-        self.patience = kwargs.pop("patience", 5)
+        print(f"Using device: {self.device.type}")
+        if self.device.type == "cuda":
+            print(f"    Device name: {torch.cuda.get_device_name(self.device)}")
+        self.to(self.device)
+
+        self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", None)
+
+        self.start_epoch: int = 0
+        self.epochs: int = kwargs.pop("epochs", 20)
+        self.patience: int = kwargs.pop("patience", 5)
         # self.model: nn.Module = kwargs.pop("model", None)
-        self.criterion: nn.Module = kwargs.pop("criterion", nn.CrossEntropyLoss())
+        self.criterion: nn.Module = kwargs.pop("criterion", nn.CrossEntropyLoss()).to(
+            self.device
+        )
         self.optimizer: torch.optim.Optimizer = kwargs.pop(
             "optimizer", torch.optim.Adam(self.parameters(), lr=lr)
         )
@@ -118,38 +131,44 @@ class BaseTorchModel(nn.Module, BaseModel):
 
         train_loader, val_loader = self._get_dataloaders(X_train, y_train, X_val, y_val)
 
-        for epoch in range(self.epochs):
-
+        for epoch in range(self.start_epoch, self.epochs):
+            torch.cuda.empty_cache()
             self.train()
             train_loss = 0.0
 
-            for X, y in train_loader:
-                X, y = X.to(self.device), y.to(self.device)
-                self.optimizer.zero_grad()
-                outputs = self.forward(X)
-                loss = self.criterion(outputs, y)
-                loss.backward()
-                self.optimizer.step()
-                train_loss += loss.item()
+            # for X, y in tqdm(
+            #     train_loader, desc=f"Processing epoch: {epoch}/{self.epochs}"
+            # ):
+            #     X, y = X.to(self.device), y.to(self.device)
+            #     self.optimizer.zero_grad()
+            #     outputs = self.forward(X)
+            #     loss = self.criterion(outputs, y)
+            #     loss.backward()
+            #     self.optimizer.step()
+            #     train_loss += loss.item()
+            train_loss = self._train_loop(train_loader, epoch)
 
             train_loss = train_loss / len(train_loader)
 
             self.eval()
-            val_loss = 0.0
+            # val_loss = 0.0
 
-            all_preds: List[np.ndarray] = []
-            all_labels: List[int] = []
+            # all_preds: List[np.ndarray] = []
+            # all_labels: List[int] = []
 
-            with torch.no_grad():
-                for X, y in val_loader:
-                    X, y = X.to(self.device), y.to(self.device)
-                    outputs = self.forward(X)
+            # with torch.no_grad():
+            #     for X, y in val_loader:
+            #         X, y = X.to(self.device), y.to(self.device)
+            #         outputs = self.forward(X)
 
-                    all_preds.append(outputs.detach().cpu().numpy())
-                    all_labels.extend(y.cpu().numpy().tolist())
+            #         all_preds.append(outputs.detach().cpu().numpy())
+            #         all_labels.extend(y.cpu().numpy().tolist())
 
-                    loss = self.criterion(outputs, y)
-                    val_loss += loss.item()
+            #         loss = self.criterion(outputs, y)
+            #         val_loss += loss.item()
+
+            all_preds, all_labels, val_loss = self._val_loop(val_loader)
+
             val_loss /= len(val_loader)
 
             all_preds: np.ndarray = np.concatenate(all_preds, axis=0)
@@ -182,7 +201,7 @@ class BaseTorchModel(nn.Module, BaseModel):
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 patience_counter = 0
-                self.save(self.model_path / "best_model.pt")
+                self.save(self.model_path / "best_model.pt", epoch)
             else:
                 patience_counter += 1
                 if patience_counter >= self.patience:
@@ -211,10 +230,30 @@ class BaseTorchModel(nn.Module, BaseModel):
     # ) -> Dict[str, float]:
     #     # self.model.eval()
 
-    def save(self, path: Path) -> None:
+    def save(self, path: Path, epoch: int) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(self.state_dict(), path)
+        torch.save(
+            {
+                "epoch": epoch,
+                "model": self.state_dict(),
+                "optimizer": self.optimizer.state_dict(),
+            },
+            path,
+        )
 
     def load(self, path: Path) -> None:
-        self.load_state_dict(torch.load(path, map_location="cpu"))
+        state = torch.load(path, map_location="cpu")
+        self.load_state_dict(state["model"])
+        self.optimizer.load_state_dict(state["optimizer"])
+        self.start_epoch = state["epoch"] + 1
         self.to(self.device)
+
+    @abstractmethod
+    def _train_loop(self, train_loader: DataLoader, epoch: int) -> float:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _val_loop(
+        self, val_loader: DataLoader
+    ) -> Tuple[List[np.ndarray], List[int], float]:
+        raise NotImplementedError

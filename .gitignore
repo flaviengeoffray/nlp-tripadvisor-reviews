@@ -6,6 +6,8 @@ __pycache__/
 # Checkpoints
 
 *.bz2
+*.pt
+*.json
 
 # C extensions
 *.so
@@ -176,3 +178,6 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+checkpoints/
+checkpoints-save1/

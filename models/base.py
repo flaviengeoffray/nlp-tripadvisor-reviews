@@ -10,6 +10,7 @@ from torch import Tensor
 @dataclass
 class BaseModelConfig:
     type: str = "logistic-regression"
+    checkpoint: Path = None
     params: Dict[str, Any] = None
 
 

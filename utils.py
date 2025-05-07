@@ -13,12 +13,17 @@ from data.tokenizers.base import BaseTokenizer
 from data.tokenizers.bpe import BpeTokenizer
 from vectorizers.base import BaseVectorizer
 from vectorizers.tfidf import TfidfVectorizer
+
 from vectorizers.word2vec import Word2VecVectorizer
 
 from models.classification.logistic_regression.logistic_regression import (
     LogisticRegressionModel,
 )
 from models.classification.feedforward.feedforward import FNNModel
+from models.classification.rnn.rnn import RNNModel
+from models.classification.lstm.lstm import LSTMModel
+
+from models.generative.transformer.transformer import Transformer
 
 
 TOKENIZER_REGISTRY = {"bpe": BpeTokenizer}
@@ -31,7 +36,7 @@ CLASSIFICATION_REGISTRY = {
     "feedforward-generation": FNNGenerativeModel,
 }
 
-GENERATIVE_REGISTRY = {}
+GENERATIVE_REGISTRY = {"transformer": Transformer}
 
 
 def load_config(path: str) -> Config:

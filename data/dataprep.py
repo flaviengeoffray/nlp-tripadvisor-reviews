@@ -24,13 +24,23 @@ def prepare_data(
     df = df.drop_duplicates()
     df = df.sample(frac=1, random_state=seed).reset_index(drop=True)
 
-    train_df, test_df = train_test_split(df, test_size=test_size, random_state=seed)
     if stratify:
         # FIXME: Need to add stratification
+        train_df, test_df = train_test_split(
+            df,
+            test_size=test_size,
+            random_state=seed,
+            stratify=df[label_col],
+        )
+
         train_df, val_df = train_test_split(
-            train_df, test_size=val_size, random_state=seed  #  stratify=df[label_col],
+            train_df,
+            test_size=val_size,
+            random_state=seed,
+            stratify=train_df[label_col],
         )
     else:
+        train_df, test_df = train_test_split(df, test_size=test_size, random_state=seed)
         train_df, val_df = train_test_split(
             train_df, test_size=val_size, random_state=seed
         )

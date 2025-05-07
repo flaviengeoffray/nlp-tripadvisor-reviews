@@ -21,7 +21,12 @@ class BpeTokenizer(BaseTokenizer):
         self.tokenizer.pre_tokenizer = Whitespace()
         self.tokenizer.decoder = ByteLevelDecoder()
         if special_tokens is None:
-            special_tokens = ["[PAD]", unk_token, "[CLS]", "[SEP]", "[MASK]"]
+            special_tokens = [
+                unk_token,
+                "[PAD]",
+                "[SOS]",
+                "[EOS]",
+            ]
         self.trainer = BpeTrainer(
             vocab_size=vocab_size,
             min_frequency=min_frequency,
@@ -38,6 +43,9 @@ class BpeTokenizer(BaseTokenizer):
 
     def decode(self, tokens: List[int]) -> str:
         return self.tokenizer.decode(tokens)
+
+    def token_to_id(self, token: str) -> Optional[int]:
+        return self.tokenizer.token_to_id(token)
 
     def save(self, path: str) -> None:
         self.tokenizer.save(path)
