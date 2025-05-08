@@ -1,0 +1,22 @@
+model_path: examples/NaiveBayes/
+dataset_name: jniimi/tripadvisor-review-rating
+review_col: review
+label_col: overall
+
+# Data preparation
+sample_size: 10000
+
+# Vectorizer Configuration
+vectorizer:
+  type: tf-idf
+  params:
+    max_features: 5000 # Maximum number of features 
+    min_df: 5
+    stop_words: english
+
+# Model Configuration
+model:
+  type: naive-bayes
+  params:
+    alpha: 1.0
+    fit_prior: true

@@ -8,8 +8,6 @@ from utils import load_config, load_tokenizer, load_vectorizer, load_model
 def main(config_path: str):
     config = load_config(config_path)
 
-    print(config)
-
     train_df, val_df, test_df = prepare_data(
         dataset_name=config.dataset_name,
         label_col=config.label_col,

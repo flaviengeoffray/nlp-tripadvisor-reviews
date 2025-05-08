@@ -7,7 +7,7 @@ model_path: "examples/Rnn/"
 dataset_name: "jniimi/tripadvisor-review-rating"
 review_col: "review"
 label_col: "overall"
-sample_size: 100
+sample_size: 1000
 
 # Tokenizer configuration
 tokenizer:
@@ -15,7 +15,6 @@ tokenizer:
   params:
     vocab_size: 5000
     min_frequency: 2
-    special_tokens: ["[PAD]", "[UNK]", "[SOS]", "[EOS]"]
 
 # Model configuration
 model:

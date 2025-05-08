@@ -172,7 +172,12 @@ class BaseTorchModel(nn.Module, BaseModel):
             val_loss /= len(val_loader)
 
             all_preds: np.ndarray = np.concatenate(all_preds, axis=0)
-            all_labels: np.ndarray = np.array(all_labels, dtype=int)
+            # all_labels: np.ndarray = np.array(all_labels, dtype=int)
+
+            if all(isinstance(label, str) for label in all_labels[:5]):  # Check if labels are strings
+                all_labels = all_labels  # Keep as list of strings
+            else:
+                all_labels = np.array(all_labels, dtype=int)
 
             print(
                 f"Epoch {epoch+1}/{self.epochs} — Train Loss: {train_loss:.4f} — Val Loss: {val_loss:.4f}"

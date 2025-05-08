@@ -16,7 +16,7 @@ from data.tokenizers.bpe import BpeTokenizer
 from models.base_pytorch import BaseTorchModel
 from models.generative.base import BaseGenerativeModel
 
-class RNNReviewGenerator(BaseTorchModel, BaseGenerativeModel):
+class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
     def __init__(
         self,
         model_path,
@@ -129,12 +129,9 @@ class RNNReviewGenerator(BaseTorchModel, BaseGenerativeModel):
                     batch_data[key].append(item[key])
             
             # Stack tensors
-            batch_data["encoder_input"] = torch.stack(batch_data["encoder_input"])
-            batch_data["decoder_input"] = torch.stack(batch_data["decoder_input"])
-            batch_data["encoder_mask"] = torch.stack(batch_data["encoder_mask"])
-            batch_data["decoder_mask"] = torch.stack(batch_data["decoder_mask"])
-            batch_data["label"] = torch.stack(batch_data["label"])
-            
+            for key in ["encoder_input", "decoder_input", "encoder_mask", "decoder_mask", "label"]:
+                batch_data[key] = torch.stack(batch_data[key])
+
             return batch_data
         
         train_loader = DataLoader(
@@ -228,116 +225,114 @@ class RNNReviewGenerator(BaseTorchModel, BaseGenerativeModel):
                 # Get input and target sequences
                 input_seq = batch["decoder_input"].to(self.device)
                 target_seq = batch["label"].to(self.device)
-                mask = batch["decoder_mask"].squeeze(1).to(self.device)
                 
                 # Forward pass
                 output, _ = self.forward(input_seq)
                 
                 # Get predictions
-                _, preds = torch.max(output, dim=2)  # [batch_size, seq_len]
-                
-                # Reshape output and target for loss calculation
-                output_flat = output.reshape(-1, self.vocab_size)
-                target_flat = target_seq.reshape(-1)
-                
-                # Create a mask to ignore padding tokens in loss calculation
-                pad_mask = target_flat != self.tokenizer.token_to_id("[PAD]")
-                
-                # Create masked targets and outputs
-                masked_target = target_flat[pad_mask]
-                masked_output = output_flat[pad_mask]
+                _, preds = torch.max(output, dim=2)
                 
                 # Calculate loss
-                loss = self.criterion(masked_output, masked_target)
+                output_flat = output.reshape(-1, self.vocab_size)
+                target_flat = target_seq.reshape(-1)
+                pad_mask = target_flat != self.tokenizer.token_to_id("[PAD]")
+                loss = self.criterion(output_flat[pad_mask], target_flat[pad_mask])
                 val_loss += loss.item()
                 
                 # Store predictions
                 all_preds.append(preds.cpu().numpy())
                 
-                # Convert target tokens to text for evaluation
+                # Convert targets to text
                 for i in range(target_seq.size(0)):
-                    # Get target sequence without padding
                     seq = target_seq[i].cpu().numpy()
-                    # Find position of EOS token if it exists
                     eos_pos = np.where(seq == self.tokenizer.token_to_id("[EOS]"))[0]
                     if len(eos_pos) > 0:
                         seq = seq[:eos_pos[0]+1]
-                    # Filter out special tokens and decode
-                    seq = [t for t in seq if t not in [self.tokenizer.token_to_id("[PAD]"), 
-                                                      self.tokenizer.token_to_id("[SOS]")]]
+                    
+                    # Filter out special tokens
+                    seq = [t for t in seq if t not in [
+                        self.tokenizer.token_to_id("[PAD]"),
+                        self.tokenizer.token_to_id("[SOS]")
+                    ]]
+                    
                     text = self.tokenizer.decode(seq)
                     all_labels.append(text)
-                
+
         return all_preds, all_labels, val_loss
     
-    def evaluate(self, X=None, y=None, y_pred=None) -> Dict[str, float]:
-        """
-        Evaluate the model performance
+    
+    def evaluate(self, X=None, y=None, y_pred=None):
+        """Evaluate the model with NLP metrics"""
+        from torchmetrics.text import BLEUScore, WordErrorRate, ROUGEScore
         
-        Args:
-            X: Not used directly in this implementation
-            y: True labels (text or token IDs)
-            y_pred: Predicted token IDs
+        # Default metrics for invalid inputs
+        default_metrics = {"bleu": 0.0, "rouge-1": 0.0, "wer": 1.0, "diversity": 0.0}
+        
+        # Validate inputs
+        if y is None or y_pred is None or len(y) == 0:
+            print("WARNING: Missing evaluation inputs")
+            return default_metrics
             
-        Returns:
-            metrics: Dictionary of evaluation metrics
-        """
-        import torchmetrics
-        from torchmetrics.text import BLEUScore, WordErrorRate
-        
-        # Convert predictions to text
+        # Process predictions
         decoded_preds = []
-        for batch_preds in y_pred:
-            for pred_seq in batch_preds:
-                # Find position of EOS token if it exists
-                eos_pos = np.where(pred_seq == self.tokenizer.token_to_id("[EOS]"))[0]
-                if len(eos_pos) > 0:
-                    pred_seq = pred_seq[:eos_pos[0]+1]
-                # Filter out special tokens
-                pred_seq = [t for t in pred_seq if t not in [self.tokenizer.token_to_id("[PAD]"), 
-                                                           self.tokenizer.token_to_id("[SOS]")]]
-                text = self.tokenizer.decode(pred_seq)
-                decoded_preds.append(text)
+        pad_id = self.tokenizer.token_to_id("[PAD]")
+        sos_id = self.tokenizer.token_to_id("[SOS]")
+        eos_id = self.tokenizer.token_to_id("[EOS]")
         
-        # Convert to format expected by torchmetrics
-        references = [[label] for label in y]  # BLEU expects a list of references for each prediction
-        candidates = decoded_preds
+        # Extract valid predictions
+        for batch in y_pred:
+            if not isinstance(batch, np.ndarray):
+                continue
+                
+            for pred_seq in batch:
+                # Make sure pred_seq is an array
+                if not hasattr(pred_seq, '__iter__'):
+                    continue
+                    
+                # Truncate at EOS if present
+                eos_indices = np.where(np.array(pred_seq) == eos_id)[0]
+                if len(eos_indices) > 0:
+                    pred_seq = pred_seq[:eos_indices[0]]
+                
+                # Remove special tokens
+                valid_tokens = [t for t in pred_seq if t != pad_id and t != sos_id and t != eos_id]
+                
+                if valid_tokens:
+                    decoded_preds.append(self.tokenizer.decode(valid_tokens))
         
-        # Calculate BLEU score
-        bleu = BLEUScore(n_gram=4)
-        bleu_score = bleu(candidates, references)
+        if not decoded_preds:
+            return default_metrics
         
-        # Calculate Word Error Rate
-        wer = WordErrorRate()
-        wer_score = wer(candidates, [ref[0] for ref in references])
+        # Prepare data for metrics calculation
+        n = min(len(decoded_preds), len(y))
+        candidates = decoded_preds[:n]
+        references = [[text] for text in y[:n]]  # BLEU format
+        ref_texts = [ref[0] for ref in references]  # Flat references
         
-        # Calculate simple accuracy (just for monitoring)
-        correct_char_count = 0
-        total_char_count = 0
+        # Calculate metrics
+        bleu_score = BLEUScore(n_gram=4)(candidates, references).item()
+        rouge_results = ROUGEScore()(candidates, ref_texts)
+        wer_score = WordErrorRate()(candidates, ref_texts).item()
         
-        for pred, ref in zip(candidates, [ref[0] for ref in references]):
-            # Count matching characters
-            min_len = min(len(pred), len(ref))
-            correct_char_count += sum(p == r for p, r in zip(pred[:min_len], ref[:min_len]))
-            total_char_count += max(len(pred), len(ref))
+        # Calculate lexical diversity
+        words = ' '.join(candidates).lower().split()
+        diversity = len(set(words)) / max(len(words), 1)
         
-        char_accuracy = correct_char_count / total_char_count if total_char_count > 0 else 0
-        
-        # Save evaluation metrics to a file
+        # Compile and save metrics
         metrics = {
-            "bleu": bleu_score.item(),
-            "wer": wer_score.item(),
-            "char_accuracy": char_accuracy,
+            "bleu": bleu_score,
+            "rouge-1": rouge_results["rouge1_fmeasure"].item(),
+            "rouge-l": rouge_results["rougeL_fmeasure"].item(),
+            "wer": wer_score,
+            "diversity": diversity
         }
         
-        # Define the path to save the metrics
-        metrics_path = Path(self.model_path).parent / "evaluation_metrics.json"
-        
-        # Save metrics as a JSON file
-        with open(metrics_path, "w") as f:
+        # Save to file
+        with open(Path(self.model_path) / "evaluation_metrics.json", "w") as f:
             json.dump(metrics, f, indent=4)
         
         return metrics
+
     
     def generate(
         self, 

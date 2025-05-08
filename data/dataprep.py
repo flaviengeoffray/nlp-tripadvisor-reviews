@@ -21,14 +21,14 @@ def prepare_data(
     raw = load_dataset(dataset_name)
     df = pd.DataFrame(raw["train"])
 
+    if sample_size is not None:
+        print("DF SAMPLE", sample_size)
+        df = df.sample(n=sample_size, random_state=seed)
+
     df = df.drop(columns=drop_columns, errors="ignore")
     df = df.dropna()
     df = df.drop_duplicates()
     df = df.sample(frac=1, random_state=seed).reset_index(drop=True)
-
-    if sample_size is not None:
-        print("df sample ", sample_size)
-        df = df.sample(n=sample_size, random_state=seed)
 
     if stratify:
         train_df, test_df = train_test_split(
