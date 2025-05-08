@@ -371,7 +371,7 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
         self.max_target_len: int = kwargs.pop("max_target_len", 256)
 
         self.max_input_len: int = kwargs.pop("max_input_len", 32)
-        self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", BpeTokenizer())
+        # self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", BpeTokenizer())
 
         # Embeddings Layers
         self.input_embedding: Embedding = Embedding(self.d_model, self.vocab_size)
@@ -415,6 +415,8 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
         # TODO: init params with xavier_uniform
 
         super().__init__(model_path=model_path, **kwargs)
+
+        assert self.tokenizer is not None, "Transformer model must have a tokenizer."
 
         self.criterion: nn.Module = kwargs.pop(
             "criterion",
