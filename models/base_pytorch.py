@@ -41,10 +41,16 @@ class BaseTorchModel(nn.Module, BaseModel):
 
         lr: float = kwargs.pop("lr", 1e-4)
 
-        self.device = torch.device(kwargs.pop("device", "cpu"))
+        device_str = kwargs.pop("device", "cpu")
+        if device_str == "mps" and not torch.backends.mps.is_available():
+            print("Warning: MPS (Apple GPU) requested but not available. Falling back to CPU.")
+            device_str = "cpu"
+        self.device = torch.device(device_str)
         print(f"Using device: {self.device.type}")
         if self.device.type == "cuda":
             print(f"    Device name: {torch.cuda.get_device_name(self.device)}")
+        elif self.device.type == "mps":
+            print("    Using Apple Silicon GPU (MPS backend)")
         self.to(self.device)
 
         self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", None)

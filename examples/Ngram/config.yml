@@ -1,0 +1,14 @@
+model_path: "examples/Ngram/"
+
+tokenizer:
+  type: "bpe"
+  checkpoint: "examples/Ngram/tokenizer.json"
+  params:
+    vocab_size: 10000
+    min_frequency: 2
+
+model:
+  type: "ngram"
+  checkpoint: "examples/Ngram/model.json"
+  params:
+    order: 10

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict
 import yaml
 from data.tokenizers.base import TokenizerConfig
+from models.generative.ngram.ngram import NgramGenerator
 from vectorizers.base import VectorizerConfig
 from models.base import BaseModelConfig, BaseModel
 from config import Config
@@ -36,7 +37,7 @@ CLASSIFICATION_REGISTRY = {
     "lstm": LSTMModel,
 }
 
-GENERATIVE_REGISTRY = {"transformer": Transformer}
+GENERATIVE_REGISTRY = {"transformer": Transformer, "ngram": NgramGenerator}
 
 
 def load_config(path: str) -> Config:
