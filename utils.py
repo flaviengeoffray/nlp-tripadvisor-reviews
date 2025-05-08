@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict
 import yaml
 from data.tokenizers.base import TokenizerConfig
+from models.generative.feedforward.feedforward import FNNGenerativeModel
 from vectorizers.base import VectorizerConfig
 from models.base import BaseModelConfig, BaseModel
 from config import Config
@@ -39,7 +40,8 @@ CLASSIFICATION_REGISTRY = {
 
 GENERATIVE_REGISTRY = {
     "rnn_generator": RNNGenModel,
-    "transformer": Transformer
+    "transformer": Transformer,
+    "feedforward-generation": FNNGenerativeModel,
 }
 
 

@@ -1,10 +1,12 @@
 from pathlib import Path
-from typing import Dict, List, Union, Any
+from typing import Dict, List, Tuple, Union, Any
 
 import numpy as np
 import torch
 from torch import Tensor
 from torch import nn
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from models.base_pytorch import BaseTorchModel
 from models.classification.base import BaseClassificationModel
@@ -74,3 +76,39 @@ class FNNModel(BaseTorchModel, BaseClassificationModel):
             outputs = self.forward(X)
             preds = torch.argmax(outputs, dim=1)
         return preds.cpu().numpy()
+
+    def _train_loop(self, train_loader: DataLoader, epoch: int) -> float:
+
+        train_loss: float = 0.0
+
+        for X, y in tqdm(train_loader, desc=f"Processing epoch: {epoch}/{self.epochs}"):
+            X, y = X.to(self.device), y.to(self.device)
+            self.optimizer.zero_grad()
+            outputs = self.forward(X)
+            loss = self.criterion(outputs, y)
+            loss.backward()
+            self.optimizer.step()
+            train_loss += loss.item()
+
+        return train_loss
+
+    def _val_loop(
+        self, val_loader: DataLoader
+    ) -> Tuple[List[np.ndarray], List[int], float]:
+        val_loss = 0.0
+
+        all_preds: List[np.ndarray] = []
+        all_labels: List[int] = []
+
+        with torch.no_grad():
+            for X, y in val_loader:
+                X, y = X.to(self.device), y.to(self.device)
+                outputs = self.forward(X)
+
+                all_preds.append(outputs.detach().cpu().numpy())
+                all_labels.extend(y.cpu().numpy().tolist())
+
+                loss = self.criterion(outputs, y)
+                val_loss += loss.item()
+
+        return all_preds, all_labels, val_loss

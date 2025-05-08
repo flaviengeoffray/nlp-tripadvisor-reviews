@@ -2,7 +2,7 @@ model_path: "examples/Transformer/"
 
 tokenizer:
   type: "bpe"
-  # checkpoint: "token"
+  checkpoint: "examples/Transformer/tokenizer.json"
   params:
     vocab_size: 10000
     min_frequency: 2

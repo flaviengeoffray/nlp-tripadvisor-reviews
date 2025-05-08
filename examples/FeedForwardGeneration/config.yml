@@ -1,0 +1,35 @@
+model_path: "examples/FeedForwardGeneration/"
+
+tokenizer:
+  type: "bpe"
+  # checkpoint: "token"
+  params:
+    vocab_size: 10000
+    min_frequency: 2
+
+vectorizer:
+  type: "tf-idf"
+  params:
+    max_features: 1000
+    stop_words: "english"
+    norm: "l2"
+    use_idf: true
+    smooth_idf: true
+    sublinear_tf: false
+
+model:
+  type: "feedforward-generation"
+  params:
+    # must match vectorizer.max_features
+    input_dim: 1000
+    hidden_dims: [256, 256]
+    vocab_size: 1000
+    dropout_rate: 0.3
+    lr: 0.0005
+    max_length: 50
+    temperature: 1.0
+    device: "cuda"
+
+training:
+  batch_size: 32
+  epochs: 10

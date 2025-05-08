@@ -136,36 +136,11 @@ class BaseTorchModel(nn.Module, BaseModel):
             self.train()
             train_loss = 0.0
 
-            # for X, y in tqdm(
-            #     train_loader, desc=f"Processing epoch: {epoch}/{self.epochs}"
-            # ):
-            #     X, y = X.to(self.device), y.to(self.device)
-            #     self.optimizer.zero_grad()
-            #     outputs = self.forward(X)
-            #     loss = self.criterion(outputs, y)
-            #     loss.backward()
-            #     self.optimizer.step()
-            #     train_loss += loss.item()
             train_loss = self._train_loop(train_loader, epoch)
 
             train_loss = train_loss / len(train_loader)
 
             self.eval()
-            # val_loss = 0.0
-
-            # all_preds: List[np.ndarray] = []
-            # all_labels: List[int] = []
-
-            # with torch.no_grad():
-            #     for X, y in val_loader:
-            #         X, y = X.to(self.device), y.to(self.device)
-            #         outputs = self.forward(X)
-
-            #         all_preds.append(outputs.detach().cpu().numpy())
-            #         all_labels.extend(y.cpu().numpy().tolist())
-
-            #         loss = self.criterion(outputs, y)
-            #         val_loss += loss.item()
 
             all_preds, all_labels, val_loss = self._val_loop(val_loader)
 
