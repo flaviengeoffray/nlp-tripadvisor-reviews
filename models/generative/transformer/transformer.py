@@ -1,5 +1,6 @@
 import math
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
+import numpy as np
 import torch
 from torch import nn
 from torch import Tensor
@@ -715,3 +716,11 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
             output = self.inference(encoder_input, encoder_mask)
 
         return self.tokenizer.decode(output.detach().cpu().tolist())
+
+    def _train_loop(self, train_loader: DataLoader, epoch: int) -> float:
+        pass
+
+    def _val_loop(
+        self, val_loader: DataLoader
+    ) -> Tuple[List[np.ndarray], List[int], float]:
+        pass
