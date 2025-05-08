@@ -553,6 +553,7 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
             preds = []
 
             with torch.no_grad():
+                i = 0
                 for B in val_loader:
                     encoder_input: Tensor = B["encoder_input"].to(
                         self.device
@@ -577,9 +578,11 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
                     expected_texts.append(target_text)
                     preds.append(output_text)
 
-                    print(f"SOURCE: {source_text}")
-                    print(f"TARGET: {target_text}")
-                    print(f"PREDICTED: {output_text}")
+                    if i % 100 == 0:
+                        print(f"SOURCE: {source_text}")
+                        print(f"TARGET: {target_text}")
+                        print(f"PREDICTED: {output_text}")
+                    i += 1
 
                     # loss: Tensor = self.criterion(
                     #     projection_output.view(-1, self.vocab_size), label.view(-1)
@@ -650,7 +653,14 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
             )
 
             # This is a greedy decoding since we always take the max probable token
-            next_token = torch.max(self.project(decoder_output[:, -1]), dim=-1)[1]
+            # next_token = torch.max(self.project(decoder_output[:, -1]), dim=-1)[1]
+
+            # Topk decoding
+            topk = 10
+            logits = self.project(decoder_output[:, -1])
+            topk_logits, topk_indices = torch.topk(logits, topk)
+            probs = torch.softmax(topk_logits, dim=-1)
+            next_token = topk_indices[0, torch.multinomial(probs, num_samples=1)]
 
             decoder_input = torch.cat(
                 [

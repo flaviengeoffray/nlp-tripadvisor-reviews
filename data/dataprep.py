@@ -25,7 +25,6 @@ def prepare_data(
     df = df.sample(frac=1, random_state=seed).reset_index(drop=True)
 
     if stratify:
-        # FIXME: Need to add stratification
         train_df, test_df = train_test_split(
             df,
             test_size=test_size,

@@ -20,9 +20,10 @@ model:
   type: "feedforward"
   params:
     input_dim: 1000
-    hidden_dims: [128, 128, 128, 128]
+    # hidden_dims: [128, 128, 128, 128]
+    hidden_dims: [512, 512, 512, 512, 512]
     output_dim: 5
-    dropout_rate: 0.5
+    # dropout_rate: 0.1
     lr: 0.0001
     # scheduler: true
     device: "cuda"
