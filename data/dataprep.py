@@ -2,6 +2,7 @@ from datasets import load_dataset
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
+from typing import Optional
 
 from .datasets.TripAdvisorDataset import TripAdvisorDataset
 
@@ -14,6 +15,7 @@ def prepare_data(
     val_size: float = 0.2,
     seed: int = 42,
     stratify: bool = True,
+    sample_size: Optional[int] = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
     raw = load_dataset(dataset_name)
@@ -24,8 +26,11 @@ def prepare_data(
     df = df.drop_duplicates()
     df = df.sample(frac=1, random_state=seed).reset_index(drop=True)
 
+    if sample_size is not None:
+        print("df sample ", sample_size)
+        df = df.sample(n=sample_size, random_state=seed)
+
     if stratify:
-        # FIXME: Need to add stratification
         train_df, test_df = train_test_split(
             df,
             test_size=test_size,

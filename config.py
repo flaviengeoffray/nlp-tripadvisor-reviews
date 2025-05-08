@@ -16,3 +16,10 @@ class Config:
     tokenizer: Optional[TokenizerConfig] = None
     vectorizer: VectorizerConfig = field(default_factory=VectorizerConfig)
     model: BaseModelConfig = field(default_factory=BaseModelConfig)
+
+    # Data preparation
+    test_size: float = 0.2
+    val_size: float = 0.2
+    seed: int = 42
+    stratify: bool = True
+    sample_size: Optional[int] = None

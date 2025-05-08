@@ -65,8 +65,8 @@ class BaseTorchModel(nn.Module, BaseModel):
 
         self.scheduler: ReduceLROnPlateau = (
             ReduceLROnPlateau(
-                self.optimizer, mode="min", factor=0.8, patience=5, verbose=True
-            )
+                self.optimizer, mode="min", factor=0.8, patience=5
+            ) # verbose=True
             if scheduler
             else None
         )

@@ -22,6 +22,7 @@ from models.classification.feedforward.feedforward import FNNModel
 from models.classification.rnn.rnn import RNNModel
 from models.classification.lstm.lstm import LSTMModel
 
+from models.generative.rnn.rnn import RNNReviewGenerator
 from models.generative.transformer.transformer import Transformer
 
 
@@ -36,7 +37,10 @@ CLASSIFICATION_REGISTRY = {
     "lstm": LSTMModel,
 }
 
-GENERATIVE_REGISTRY = {"transformer": Transformer}
+GENERATIVE_REGISTRY = {
+    "rnn_generator": RNNReviewGenerator,
+    "transformer": Transformer
+}
 
 
 def load_config(path: str) -> Config:
