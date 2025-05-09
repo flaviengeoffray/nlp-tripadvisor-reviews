@@ -3,7 +3,7 @@ import warnings
 from data.dataprep import prepare_data
 from models.base import BaseModel
 from utils import load_config, load_tokenizer, load_vectorizer, load_model
-
+import json
 
 def main(config_path: str):
     config = load_config(config_path)

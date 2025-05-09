@@ -16,6 +16,7 @@ from vectorizers.tfidf import TfidfVectorizer
 
 from vectorizers.word2vec import Word2VecVectorizer
 
+from models.classification.bayes.naive_bayes import NaiveBayesModel
 from models.classification.logistic_regression.logistic_regression import (
     LogisticRegressionModel,
 )
@@ -32,6 +33,7 @@ TOKENIZER_REGISTRY = {"bpe": BpeTokenizer}
 VECTORIZER_REGISTRY = {"tf-idf": TfidfVectorizer, "word2vec": Word2VecVectorizer}
 
 CLASSIFICATION_REGISTRY = {
+    "naive-bayes": NaiveBayesModel,
     "logistic-regression": LogisticRegressionModel,
     "feedforward": FNNModel,
     "rnn": RNNModel,

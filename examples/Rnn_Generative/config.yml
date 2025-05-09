@@ -1,13 +1,13 @@
 # Configuration for TripAdvisor Review Generator
 
 # Path to save model artifacts
-model_path: "examples/Rnn/"
+model_path: "examples/Rnn_Generative/"
 
 # Dataset information
 dataset_name: "jniimi/tripadvisor-review-rating"
 review_col: "review"
 label_col: "overall"
-sample_size: 1000
+sample_size: 50000
 
 # Tokenizer configuration
 tokenizer:
@@ -19,7 +19,7 @@ tokenizer:
 # Model configuration
 model:
   type: "rnn_generator"
-  # checkpoint: "examples/Rnn/last_gen_model.pt"
+  checkpoint: "examples/Rnn_Generative/best_model.pt"
 
   params:
     vocab_size: 5000
@@ -28,7 +28,7 @@ model:
     num_layers: 2
     dropout: 0.3
     lr: 0.001
-    epochs: 10
+    epochs: 20
     batch_size: 64
     max_length: 256
     device: "cpu"  # or "cpu" if no GPU is available

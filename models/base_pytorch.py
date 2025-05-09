@@ -158,22 +158,23 @@ class BaseTorchModel(nn.Module, BaseModel):
                 f"Epoch {epoch+1}/{self.epochs} — Train Loss: {train_loss:.4f} — Val Loss: {val_loss:.4f}"
             )
 
-            metrics: Dict[str, float] = self.evaluate(
-                X=None, y=all_labels, y_pred=all_preds
-            )
+            if (epoch+1) % 1 == 0:
+                metrics: Dict[str, float] = self.evaluate(
+                    X=None, y=all_labels, y_pred=all_preds
+                )
 
-            print(
-                "Val Metrics — ",
-                ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()),
-            )
+                print(
+                    "Val Metrics — ",
+                    ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()),
+                )
 
-            from utils import save_metrics  # FIXME: Crado
+                from utils import save_metrics  # FIXME: Crado
 
-            save_metrics(
-                metrics=metrics,
-                epoch=epoch,
-                path=self.model_path / "train_metrics.json",
-            )
+                save_metrics(
+                    metrics=metrics,
+                    epoch=epoch,
+                    path=self.model_path / "train_metrics.json",
+                )
 
             if self.scheduler:
                 self.scheduler.step(val_loss)

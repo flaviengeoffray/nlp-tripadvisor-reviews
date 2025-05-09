@@ -1,7 +1,7 @@
 import math
 import numpy as np
 from pathlib import Path
-from typing import Dict, List, Any, Tuple, Optional
+from typing import Dict, List, Any, Tuple, Optional, Union
 import torch
 from torch import nn
 from torch import Tensor
@@ -9,12 +9,17 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import json
 
+import torchmetrics
+from torchmetrics.text.bleu import BLEUScore
+from torchmetrics.text.rouge import ROUGEScore
+
 from data.datasets.TripAdvisorDataset import TripAdvisorDataset, causal_mask
 
 from data.tokenizers.base import BaseTokenizer
 from data.tokenizers.bpe import BpeTokenizer
 from models.base_pytorch import BaseTorchModel
 from models.generative.base import BaseGenerativeModel
+
 
 class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
     def __init__(
@@ -261,172 +266,103 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
         return all_preds, all_labels, val_loss
     
     
-    def evaluate(self, X=None, y=None, y_pred=None):
-        """Evaluate the model with NLP metrics"""
-        from torchmetrics.text import BLEUScore, WordErrorRate, ROUGEScore
+    def evaluate(self, X: Union[np.ndarray, Tensor] = None, y: Union[np.ndarray, Tensor] = None, y_pred: Union[np.ndarray, Tensor] = None) -> Dict[str, float]:
+        """Evaluate the model with NLP metrics using torchmetrics"""
+
+        if y_pred is None:
+            # If predictions are not provided, generate them
+            _, y_pred, _ = self._val_loop(self._get_dataloaders(X, y, X, y, shuffle=False)[1])
+
+        # Initialize metrics
+        bleu = BLEUScore(n_gram=1, smooth=True)
+        rouge = ROUGEScore()
+        wer = torchmetrics.WordErrorRate()
+        cer = torchmetrics.CharErrorRate()
         
-        # Default metrics for invalid inputs
-        default_metrics = {"bleu": 0.0, "rouge-1": 0.0, "wer": 1.0, "diversity": 0.0}
-        
-        # Validate inputs
-        if y is None or y_pred is None or len(y) == 0:
-            print("WARNING: Missing evaluation inputs")
-            return default_metrics
-            
-        # Process predictions
-        decoded_preds = []
-        pad_id = self.tokenizer.token_to_id("[PAD]")
-        sos_id = self.tokenizer.token_to_id("[SOS]")
-        eos_id = self.tokenizer.token_to_id("[EOS]")
-        
-        # Extract valid predictions
-        for batch in y_pred:
-            if not isinstance(batch, np.ndarray):
-                continue
-                
-            for pred_seq in batch:
-                # Make sure pred_seq is an array
-                if not hasattr(pred_seq, '__iter__'):
-                    continue
-                    
-                # Truncate at EOS if present
-                eos_indices = np.where(np.array(pred_seq) == eos_id)[0]
-                if len(eos_indices) > 0:
-                    pred_seq = pred_seq[:eos_indices[0]]
-                
-                # Remove special tokens
-                valid_tokens = [t for t in pred_seq if t != pad_id and t != sos_id and t != eos_id]
-                
-                if valid_tokens:
-                    decoded_preds.append(self.tokenizer.decode(valid_tokens))
-        
-        if not decoded_preds:
-            return default_metrics
-        
-        # Prepare data for metrics calculation
-        n = min(len(decoded_preds), len(y))
-        candidates = decoded_preds[:n]
-        references = [[text] for text in y[:n]]  # BLEU format
-        ref_texts = [ref[0] for ref in references]  # Flat references
-        
-        # Calculate metrics
-        bleu_score = BLEUScore(n_gram=4)(candidates, references).item()
-        rouge_results = ROUGEScore()(candidates, ref_texts)
-        wer_score = WordErrorRate()(candidates, ref_texts).item()
-        
-        # Calculate lexical diversity
-        words = ' '.join(candidates).lower().split()
-        diversity = len(set(words)) / max(len(words), 1)
-        
-        # Compile and save metrics
-        metrics = {
-            "bleu": bleu_score,
-            "rouge-1": rouge_results["rouge1_fmeasure"].item(),
-            "rouge-l": rouge_results["rougeL_fmeasure"].item(),
-            "wer": wer_score,
-            "diversity": diversity
+        # Calculate BLEU score
+        # Ensure y_pred and y are lists of strings
+        y_pred = [self.tokenizer.decode(pred) for pred in y_pred]
+
+        bleu_score = bleu(y_pred, y)
+
+        # Calculate ROUGE scores
+        rouge_scores = rouge(y_pred, y)
+
+        # Calculate WER and CER
+        wer_score = wer(y_pred, y)
+        cer_score = cer(y_pred, y)
+
+        return {
+            "BLEU": bleu_score.item(),
+            "ROUGE-1": rouge_scores["rouge1_fmeasure"].item(),
+            "ROUGE-2": rouge_scores["rouge2_fmeasure"].item(),
+            "ROUGE-L": rouge_scores["rougeL_fmeasure"].item(),
+            "WER": wer_score.item(),
+            "CER": cer_score.item(),
         }
-        
-        # Save to file
-        with open(Path(self.model_path) / "evaluation_metrics.json", "w") as f:
-            json.dump(metrics, f, indent=4)
-        
-        return metrics
+            
 
     
-    def generate(
-        self, 
-        rating: int, 
-        keywords: str, 
-        max_length: int = 200, 
-        temperature: float = 1.0,
-        top_k: int = 50,
-        top_p: float = 0.9,
-    ) -> str:
-        """
-        Generate a TripAdvisor review based on rating and keywords
-        
-        Args:
-            rating: Rating from 1-5
-            keywords: Keywords to use in generation
-            max_length: Maximum length of generated text
-            temperature: Temperature for sampling (higher = more random)
-            top_k: If > 0, sample from top k most likely tokens
-            top_p: If > 0, sample from tokens with cumulative probability > p
-            
-        Returns:
-            generated_text: The generated review text
-        """
+    def generate(self, rating, keywords, max_length=200, temperature=1.0, top_k=50, top_p=0.9):
+        """Generate a review based on rating and keywords"""
         self.eval()
         
-        # Create prompt: "rating: keywords"
+        # Create prompt
         prompt = f"{rating}: {keywords}"
-        
-        # Tokenize the prompt
         prompt_tokens = self.tokenizer.encode(prompt)
         
-        # Add SOS token at the beginning
+        # Prepare input with SOS token
         input_tokens = [self.tokenizer.token_to_id("[SOS]")] + prompt_tokens
         input_tensor = torch.tensor([input_tokens], dtype=torch.long).to(self.device)
-        
+
         generated_tokens = []
-        
-        # Initialize hidden state
         hidden = None
         
-        with torch.no_grad():
-            # First forward pass with the prompt
+        with torch.no_grad():   
+            # First pass with the prompt
             output, hidden = self.forward(input_tensor, hidden)
+            current_token = input_tensor[:, -1].unsqueeze(1)  # Last token
             
-            # Now generate tokens one by one
-            current_token = input_tensor[:, -1].unsqueeze(1)  # Use last token as input
-            
-            # Generate up to max_length tokens
+            # Generate tokens one by one
             for _ in range(max_length):
-                # Get model prediction for next token
                 output, hidden = self.forward(current_token, hidden)
-                
-                # Get logits for the next token prediction
                 next_token_logits = output[0, -1, :] / temperature
                 
-                # Apply top-k sampling if specified
+                # Apply top-k sampling
                 if top_k > 0:
                     top_k_logits, top_k_indices = torch.topk(next_token_logits, top_k)
                     next_token_logits = torch.full_like(next_token_logits, float('-inf'))
                     next_token_logits.scatter_(0, top_k_indices, top_k_logits)
                 
-                # Apply top-p (nucleus) sampling if specified
+                # Apply top-p sampling
                 if top_p > 0:
                     sorted_logits, sorted_indices = torch.sort(next_token_logits, descending=True)
                     cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
                     
-                    # Remove tokens with cumulative probability above the threshold
+                    # Remove tokens above threshold
                     sorted_indices_to_remove = cumulative_probs > top_p
-                    # Shift the indices to the right to keep also the first token above the threshold
                     sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
                     sorted_indices_to_remove[..., 0] = 0
                     
-                    # Create mask for indices to remove
                     indices_to_remove = sorted_indices[sorted_indices_to_remove]
                     next_token_logits[indices_to_remove] = float('-inf')
                 
-                # Sample from the distribution
+                # Sample from distribution
                 probs = torch.softmax(next_token_logits, dim=-1)
                 next_token = torch.multinomial(probs, 1).item()
                 
-                # If we hit EOS token or PAD token, stop generation
-                if next_token == self.tokenizer.token_to_id("[EOS]") or next_token == self.tokenizer.token_to_id("[PAD]"):
+                # Stop if EOS or PAD
+                if next_token in [
+                    self.tokenizer.token_to_id("[EOS]"),
+                    self.tokenizer.token_to_id("[PAD]")
+                ]:
                     break
                 
-                # Add token to generated sequence
                 generated_tokens.append(next_token)
-                
-                # Update input tensor for next iteration
                 current_token = torch.tensor([[next_token]], dtype=torch.long).to(self.device)
         
         # Decode the generated tokens
         generated_text = self.tokenizer.decode(generated_tokens)
-        
         return generated_text
     
     def save(self, path: Path, epoch: int = None) -> None:
