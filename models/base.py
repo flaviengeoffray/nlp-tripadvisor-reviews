@@ -20,7 +20,7 @@ class BaseModel(ABC):
     """
 
     def __init__(self, model_path: Path, **kwargs: Any) -> None:
-        self.model_path = model_path
+        self.model_path: Path = model_path
 
     @abstractmethod
     def fit(self, X_train: Any, y_train: Any, X_val: Any, y_val: Any) -> None:

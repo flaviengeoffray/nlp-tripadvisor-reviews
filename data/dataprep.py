@@ -47,19 +47,19 @@ def prepare_data(
     return train_df, val_df, test_df
 
 
-def get_dataloaders(
-    train_df: pd.DataFrame,
-    val_df: pd.DataFrame,
-    test_df: pd.DataFrame,
-    batch_size: int = 32,
-    tokenizer=None,
-) -> tuple[DataLoader, DataLoader, DataLoader]:
-    train_ds = TripAdvisorDataset(train_df, tokenizer)
-    val_ds = TripAdvisorDataset(val_df, tokenizer)
-    test_ds = TripAdvisorDataset(test_df, tokenizer)
+# def get_dataloaders(
+#     train_df: pd.DataFrame,
+#     val_df: pd.DataFrame,
+#     test_df: pd.DataFrame,
+#     batch_size: int = 32,
+#     tokenizer=None,
+# ) -> tuple[DataLoader, DataLoader, DataLoader]:
+#     train_ds = TripAdvisorDataset(train_df, tokenizer)
+#     val_ds = TripAdvisorDataset(val_df, tokenizer)
+#     test_ds = TripAdvisorDataset(test_df, tokenizer)
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
+#     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
+#     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
+#     test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
 
-    return train_loader, val_loader, test_loader
+#     return train_loader, val_loader, test_loader

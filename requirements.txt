@@ -9,3 +9,4 @@ scipy
 numpy
 torchmetrics
 gensim
+accelerate>=0.26.0

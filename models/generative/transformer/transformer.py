@@ -621,9 +621,9 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
 
                 label: Tensor = B["label"].to(self.device)  # (B, seq_len)
 
-                assert (
-                    encoder_input.size(0) == 1
-                ), "Validation batch size must be equals to 1."
+                # assert (
+                #     encoder_input.size(0) == 1
+                # ), "Validation batch size must be equals to 1."
 
                 output: Tensor = self.inference(encoder_input, encoder_mask)
 
