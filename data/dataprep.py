@@ -2,6 +2,7 @@ from datasets import load_dataset
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
+from typing import Optional
 
 from .datasets.TripAdvisorDataset import TripAdvisorDataset
 
@@ -14,10 +15,15 @@ def prepare_data(
     val_size: float = 0.2,
     seed: int = 42,
     stratify: bool = True,
+    sample_size: Optional[int] = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
     raw = load_dataset(dataset_name)
     df = pd.DataFrame(raw["train"])
+
+    if sample_size is not None:
+        print("DF SAMPLE", sample_size)
+        df = df.sample(n=sample_size, random_state=seed)
 
     df = df.drop(columns=drop_columns, errors="ignore")
     df = df.dropna()

@@ -17,6 +17,7 @@ from vectorizers.tfidf import TfidfVectorizer
 
 from vectorizers.word2vec import Word2VecVectorizer
 
+from models.classification.bayes.naive_bayes import NaiveBayesModel
 from models.classification.logistic_regression.logistic_regression import (
     LogisticRegressionModel,
 )
@@ -24,6 +25,7 @@ from models.classification.feedforward.feedforward import FNNModel
 from models.classification.rnn.rnn import RNNModel
 from models.classification.lstm.lstm import LSTMModel
 
+from models.generative.rnn.rnn import RNNGenModel
 from models.generative.transformer.transformer import Transformer
 
 
@@ -32,6 +34,7 @@ TOKENIZER_REGISTRY = {"bpe": BpeTokenizer}
 VECTORIZER_REGISTRY = {"tf-idf": TfidfVectorizer, "word2vec": Word2VecVectorizer}
 
 CLASSIFICATION_REGISTRY = {
+    "naive-bayes": NaiveBayesModel,
     "logistic-regression": LogisticRegressionModel,
     "feedforward": FNNModel,
     "rnn": RNNModel,
@@ -40,6 +43,7 @@ CLASSIFICATION_REGISTRY = {
 }
 
 GENERATIVE_REGISTRY = {
+    "rnn_generator": RNNGenModel,
     "transformer": Transformer,
     "feedforward-generation": FNNGenerativeModel,
 }
@@ -65,6 +69,13 @@ def load_config(path: str) -> Config:
     )
     model_cfg = BaseModelConfig(**data.get("model", {}))
 
+    # Data prep
+    test_size = data.get("test_size", Config.test_size)
+    val_size = data.get("val_size", Config.val_size)
+    seed = data.get("seed", Config.seed)
+    stratify = data.get("stratify", Config.stratify)
+    sample_size = data.get("sample_size", Config.sample_size)
+
     return Config(
         model_path=model_path,
         dataset_name=dataset_name,
@@ -73,6 +84,12 @@ def load_config(path: str) -> Config:
         tokenizer=tokenizer_cfg,
         vectorizer=vectorizer_cfg,
         model=model_cfg,
+
+        test_size=test_size,
+        val_size=val_size,
+        seed=seed,
+        stratify=stratify,
+        sample_size=sample_size
     )
 
 

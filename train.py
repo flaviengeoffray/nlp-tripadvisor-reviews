@@ -3,12 +3,22 @@ import warnings
 from data.dataprep import prepare_data
 from models.base import BaseModel
 from utils import load_config, load_tokenizer, load_vectorizer, load_model
-
+import json
 
 def main(config_path: str):
     config = load_config(config_path)
 
-    train_df, val_df, test_df = prepare_data(dataset_name=config.dataset_name)
+    train_df, val_df, test_df = prepare_data(
+        dataset_name=config.dataset_name,
+        label_col=config.label_col,
+        drop_columns=["stay_year", "post_date", "freq", "lang"],
+        test_size=config.test_size,
+        val_size=config.val_size,
+        seed=config.seed,
+        stratify=config.stratify,
+        sample_size=config.sample_size,
+    )
+
     X_train, y_train = (
         train_df[config.review_col].to_numpy(),
         train_df[config.label_col].to_numpy(),
