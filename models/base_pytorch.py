@@ -158,7 +158,7 @@ class BaseTorchModel(nn.Module, BaseModel):
                 f"Epoch {epoch+1}/{self.epochs} — Train Loss: {train_loss:.4f} — Val Loss: {val_loss:.4f}"
             )
 
-            if (epoch+1) % 1 == 0:
+            if (epoch+1) % 10 == 0:
                 metrics: Dict[str, float] = self.evaluate(
                     X=None, y=all_labels, y_pred=all_preds
                 )
