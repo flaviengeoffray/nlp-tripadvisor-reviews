@@ -2,7 +2,7 @@ from typing import List, Optional
 from tokenizers import Tokenizer
 from tokenizers.models import BPE
 from tokenizers.trainers import BpeTrainer
-from tokenizers.pre_tokenizers import Whitespace
+from tokenizers.pre_tokenizers import ByteLevel
 from tokenizers.decoders import ByteLevel as ByteLevelDecoder
 from tokenizers.processors import TemplateProcessing
 from .base import BaseTokenizer
@@ -19,9 +19,8 @@ class BpeTokenizer(BaseTokenizer):
     ) -> None:
 
         self.tokenizer = Tokenizer(BPE(unk_token=unk_token))
-        self.tokenizer.pre_tokenizer = Whitespace()
-        #self.tokenizer.decoder = ByteLevelDecoder()
-        
+        self.tokenizer.pre_tokenizer = ByteLevel()
+        self.tokenizer.decoder = ByteLevelDecoder()
         if special_tokens is None:
             special_tokens = [
                 unk_token,

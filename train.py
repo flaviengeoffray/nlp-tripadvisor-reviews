@@ -58,8 +58,6 @@ def main(config_path: str):
 
     model.fit(X_train, y_train, X_val, y_val)
 
-    # model.save(config.model_path / "model.bz2")
-
 
 if __name__ == "__main__":
     warnings.filterwarnings("ignore")

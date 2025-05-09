@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict
 import yaml
 from data.tokenizers.base import TokenizerConfig
+from models.classification.pretrained.pretrained import PretrainedClassifier
 from models.generative.feedforward.feedforward import FNNGenerativeModel
 from vectorizers.base import VectorizerConfig
 from models.base import BaseModelConfig, BaseModel
@@ -38,6 +39,7 @@ CLASSIFICATION_REGISTRY = {
     "feedforward": FNNModel,
     "rnn": RNNModel,
     "lstm": LSTMModel,
+    "pre-trained": PretrainedClassifier,
 }
 
 GENERATIVE_REGISTRY = {

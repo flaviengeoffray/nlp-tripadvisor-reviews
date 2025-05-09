@@ -1,15 +1,13 @@
 from pathlib import Path
 from abc import abstractmethod
-from typing import Any, List, Literal, Tuple, Union, Dict
+from typing import Any, List, Tuple, Dict
 
 import numpy as np
-import scipy as sp
 import torch
 from torch import Tensor
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from tqdm import tqdm
 
 from .base import BaseModel
 from data.tokenizers.base import BaseTokenizer
@@ -139,6 +137,8 @@ class BaseTorchModel(nn.Module, BaseModel):
             train_loss = self._train_loop(train_loader, epoch)
 
             train_loss = train_loss / len(train_loader)
+
+            self.save(self.model_path / "last_model.pt", epoch)
 
             self.eval()
 
