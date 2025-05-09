@@ -9,6 +9,7 @@ from transformers import (
     Trainer,
     TrainingArguments,
     DataCollatorWithPadding,
+    EarlyStoppingCallback,
 )
 
 from models.classification.base import BaseClassificationModel
@@ -25,6 +26,7 @@ class PretrainedClassifier(BaseClassificationModel):
         )
         self.epochs: int = kwargs.pop("epochs", 3)
         self.batch_size: int = kwargs.pop("batch_size", 8)
+        self.patience: int = kwargs.pop("patience", 2)
         self.tokenizer: AutoTokenizer = AutoTokenizer.from_pretrained(
             self.model_checkpoint
         )
@@ -74,13 +76,16 @@ class PretrainedClassifier(BaseClassificationModel):
             return self.evaluate(None, labels, preds)
 
         training_args = TrainingArguments(
-            output_dir="classifier_output",
+            output_dir=self.model_path / "classifier_output",
             num_train_epochs=self.epochs,
             per_device_train_batch_size=self.batch_size,
             evaluation_strategy="epoch",
             logging_strategy="epoch",
             save_strategy="no",
             seed=random_seed,
+            load_best_model_at_end=True,
+            metric_for_best_model="eval_accuracy",
+            greater_is_better=True,
         )
 
         def collate_without_token_type(batch):
@@ -94,8 +99,9 @@ class PretrainedClassifier(BaseClassificationModel):
             train_dataset=train_data,
             eval_dataset=eval_data,
             tokenizer=self.tokenizer,
-            data_collator=collate_without_token_type,  # DataCollatorWithPadding(self.tokenizer),
+            data_collator=collate_without_token_type,
             compute_metrics=compute_metrics,
+            callbacks=[EarlyStoppingCallback(early_stopping_patience=self.patience)],
         )
 
         print(f"Model is on device: {next(self.model.parameters()).device}")
@@ -105,10 +111,7 @@ class PretrainedClassifier(BaseClassificationModel):
         self.model.eval()
 
         metrics = trainer.evaluate()
-        print(
-            f"Validation accuracy: {metrics}"  # {metrics.get('eval_accuracy'):.4f}, F1: {metrics.get('eval_f1'):.4f}"
-        )
-        # self.eval_data = eval_data
+        print(f"Validation: {metrics}")
         self.save(self.model_path / "checkpoint")
 
     def predict(self, texts: Union[str, List[str]]) -> Union[int, List[int]]:

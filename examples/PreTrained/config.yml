@@ -3,6 +3,6 @@ model_path: "examples/PreTrained/"
 model:
   type: "pre-trained"
   params:
-    model_checkpoint: "prajjwal1/bert-tiny" #"distilbert-base-uncased"
-    epochs: 3
+    model_checkpoint: "distilbert-base-uncased"
+    epochs: 15
     batch_size: 8
