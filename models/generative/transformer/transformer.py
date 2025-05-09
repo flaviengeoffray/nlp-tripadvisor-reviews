@@ -550,8 +550,8 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
                 eos,
                 torch.tensor([pad] * source_padding_len, dtype=torch.int64),
             ]
-        )
-        encoder_mask: Tensor = (encoder_input != pad).unsqueeze(0).unsqueeze(0).int()
+        ).unsqueeze(0)
+        encoder_mask: Tensor = (encoder_input != pad).unsqueeze(1).unsqueeze(2).int()
 
         with torch.no_grad():
             output = self.inference(encoder_input, encoder_mask)
