@@ -8,6 +8,12 @@ dataset_name: "jniimi/tripadvisor-review-rating"
 review_col: "review"
 label_col: "overall"
 sample_size: 50000
+balance: true
+balance_percentage: 0.8
+augmentation_methods:
+  - "synonym"
+  - "sentence_shuffle"
+  - "word_deletion"
 
 # Tokenizer configuration
 tokenizer:
@@ -19,7 +25,7 @@ tokenizer:
 # Model configuration
 model:
   type: "rnn_generator"
-  checkpoint: "examples/Rnn_Generative/best_model.pt"
+  # checkpoint: "examples/Rnn_Generative/best_model.pt"
 
   params:
     vocab_size: 5000

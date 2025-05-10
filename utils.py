@@ -76,6 +76,11 @@ def load_config(path: str) -> Config:
     stratify = data.get("stratify", Config.stratify)
     sample_size = data.get("sample_size", Config.sample_size)
 
+    # Data augmentation
+    balance = data.get("balance", Config.balance)
+    balance_percentage = data.get("balance_percentage", Config.balance_percentage)
+    augmentation_methods = data.get("augmentation_methods", Config.augmentation_methods)
+
     return Config(
         model_path=model_path,
         dataset_name=dataset_name,
@@ -89,7 +94,11 @@ def load_config(path: str) -> Config:
         val_size=val_size,
         seed=seed,
         stratify=stratify,
-        sample_size=sample_size
+        sample_size=sample_size,
+
+        balance=balance,
+        balance_percentage=balance_percentage,
+        augmentation_methods=augmentation_methods
     )
 
 

@@ -17,6 +17,9 @@ def main(config_path: str):
         seed=config.seed,
         stratify=config.stratify,
         sample_size=config.sample_size,
+        balance=config.balance,
+        balance_percentage=config.balance_percentage,
+        augmentation_methods=config.augmentation_methods,
     )
 
     X_train, y_train = (

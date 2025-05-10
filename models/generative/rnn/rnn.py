@@ -318,15 +318,25 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
         generated_tokens = []
         hidden = None
         
+        # Forcer une longueur minimale avant d'accepter un EOS
+        min_length = 30  # Au moins 30 tokens avant d'autoriser EOS
+        
         with torch.no_grad():   
             # First pass with the prompt
             output, hidden = self.forward(input_tensor, hidden)
             current_token = input_tensor[:, -1].unsqueeze(1)  # Last token
             
             # Generate tokens one by one
-            for _ in range(max_length):
+            for i in range(max_length):
                 output, hidden = self.forward(current_token, hidden)
                 next_token_logits = output[0, -1, :] / temperature
+                
+                # Bloquer EOS et PAD tokens si on n'a pas atteint la longueur minimale
+                if i < min_length:
+                    eos_id = self.tokenizer.token_to_id("[EOS]")
+                    pad_id = self.tokenizer.token_to_id("[PAD]")
+                    next_token_logits[eos_id] = float('-inf')
+                    next_token_logits[pad_id] = float('-inf')
                 
                 # Apply top-k sampling
                 if top_k > 0:
@@ -351,8 +361,8 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
                 probs = torch.softmax(next_token_logits, dim=-1)
                 next_token = torch.multinomial(probs, 1).item()
                 
-                # Stop if EOS or PAD
-                if next_token in [
+                # Stop if EOS or PAD et qu'on a dépassé la longueur minimale
+                if i >= min_length and next_token in [
                     self.tokenizer.token_to_id("[EOS]"),
                     self.tokenizer.token_to_id("[PAD]")
                 ]:
@@ -364,6 +374,7 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
         # Decode the generated tokens
         generated_text = self.tokenizer.decode(generated_tokens)
         return generated_text
+
     
     def save(self, path: Path, epoch: int = None) -> None:
         """
