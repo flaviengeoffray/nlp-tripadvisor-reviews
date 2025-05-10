@@ -4,10 +4,7 @@ from pathlib import Path
 from typing import Any, Dict
 import yaml
 from data.tokenizers.base import TokenizerConfig
-<<<<<<< HEAD
 from models.generative.ngram.ngram import NgramGenerator
-=======
->>>>>>> 26c8805829d3b43a0246007683a13da4b8ce8b01
 from models.classification.pretrained.pretrained import PretrainedClassifier
 from models.generative.feedforward.feedforward import FNNGenerativeModel
 from vectorizers.base import VectorizerConfig
@@ -81,14 +78,11 @@ def load_config(path: str) -> Config:
     stratify = data.get("stratify", Config.stratify)
     sample_size = data.get("sample_size", Config.sample_size)
 
-<<<<<<< HEAD
-=======
     # Data augmentation
     balance = data.get("balance", Config.balance)
     balance_percentage = data.get("balance_percentage", Config.balance_percentage)
     augmentation_methods = data.get("augmentation_methods", Config.augmentation_methods)
 
->>>>>>> 26c8805829d3b43a0246007683a13da4b8ce8b01
     return Config(
         model_path=model_path,
         dataset_name=dataset_name,
@@ -102,15 +96,11 @@ def load_config(path: str) -> Config:
         val_size=val_size,
         seed=seed,
         stratify=stratify,
-<<<<<<< HEAD
-        sample_size=sample_size
-=======
         sample_size=sample_size,
 
         balance=balance,
         balance_percentage=balance_percentage,
         augmentation_methods=augmentation_methods
->>>>>>> 26c8805829d3b43a0246007683a13da4b8ce8b01
     )
 
 
