@@ -4,6 +4,7 @@ from datasets import load_dataset
 import pandas as pd
 import os
 import json
+import random
 
 from models.generative.base import BaseGenerativeModel
 from .config import ORDER
@@ -12,25 +13,18 @@ from collections import Counter, defaultdict
 from sklearn.model_selection import train_test_split
 import math
 from data.tokenizers.bpe import BpeTokenizer
+from nltk.util import ngrams
 
 nltk.download('punkt', quiet=True)
-
-class WordTokenizer:
-    """A simple word-level tokenizer using nltk."""
-    def encode(self, text):
-        return nltk.word_tokenize(text)
-    def decode(self, tokens):
-        return " ".join(tokens)
 
 class NgramGenerator(BaseGenerativeModel):
     def __init__(self, model_path=None, **kwargs):
         self.n = kwargs.pop("order", ORDER)
-        self.ngram_probs = defaultdict(float)
+        self.ngram_probs = {order: defaultdict(float) for order in range(2, self.n + 1)}
         self.unigram_counts = Counter()
         self.vocab = set()
         self.V = 0
-        # Use word-level tokenizer by default
-        self.tokenizer: Any = kwargs.pop("tokenizer", WordTokenizer())
+        self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", None)
 
     def fit(self, X_train, y_train, X_val, y_val):
         print("[NgramGenerator] Starting training...")
@@ -40,51 +34,93 @@ class NgramGenerator(BaseGenerativeModel):
         self.V = len(self.unigram_counts)
         self.vocab = set(self.unigram_counts.keys())
         print(f"[NgramGenerator] Vocabulary size: {self.V}")
-        n_grams = [tuple(gram) for sent in tokenized for gram in nltk.ngrams(sent, self.n)]
-        ngram_counts = Counter(n_grams)
-        print(f"[NgramGenerator] Extracted {len(ngram_counts)} unique {self.n}-grams.")
-        for i, (gram, count) in enumerate(ngram_counts.items()):
-            context = gram[:-1]
-            # context_count: count of context in the data
-            if context:
-                context_count = sum(ngram_counts[g] for g in ngram_counts if g[:-1] == context)
-            else:
-                context_count = sum(self.unigram_counts.values())
-            self.ngram_probs[gram] = (count + 1) / (context_count + self.V)
-            if i % 100000 == 0 and i > 0:
-                print(f"[NgramGenerator] Processed {i} n-grams...")
+
+        # For each n-gram order, compute probabilities
+        for order in range(2, self.n + 1):
+            n_grams = [list(ngrams(sent, order)) for sent in tokenized]
+            n_grams = [gram for sublist in n_grams for gram in sublist]
+            ngram_counts = Counter(n_grams)
+            # Compute context counts for denominator
+            context_counts = Counter()
+            for gram, count in ngram_counts.items():
+                context = gram[:-1]
+                context_counts[context] += count
+            for gram, count in ngram_counts.items():
+                context = gram[:-1]
+                context_count = context_counts[context]
+                self.ngram_probs[order][gram] = (count + 1) / (context_count + self.V)
+            print(f"[NgramGenerator] Extracted {len(ngram_counts)} unique {order}-grams.")
         print("[NgramGenerator] Training complete.")
 
     def infer_next_token(self, tokens):
-        # tokens: list of word tokens
+        # Try to infer the next token using n-grams of decreasing size
         for n in range(self.n, 1, -1):
             if len(tokens) >= n - 1:
                 context = tuple(tokens[-(n-1):])
-                candidates = [(gram[-1], prob) for gram, prob in self.ngram_probs.items() if gram[:-1] == context]
+                candidates = [(gram[-1], prob) for gram, prob in self.ngram_probs[n].items() if gram[:-1] == context]
                 if candidates:
-                    return max(candidates, key=lambda x: x[1])[0]
+                    next_token = max(candidates, key=lambda x: x[1])[0]
+                    return next_token
+        # Fallback: pick most common unigram
+        if self.unigram_counts:
+            fallback_token = self.unigram_counts.most_common(1)[0][0]
+            return fallback_token
         return None
 
     def generate(self, prompt, max_length=50):
         tokens = self.tokenizer.encode(prompt.lower())
+        
+        # Remove any end-of-string or special tokens at the end of the prompt
+        while tokens:
+            decoded = self.tokenizer.decode([tokens[-1]])
+            if decoded == '':
+                tokens.pop()
+            else:
+                break
+            
         out = tokens[:]
+        repeat_count = 0
+        last_token = None
         for _ in range(max_length):
             next_token = self.infer_next_token(out)
             if not next_token:
                 break
             out.append(next_token)
-        return self.tokenizer.decode(out)
+            if next_token == last_token:
+                repeat_count += 1
+                if repeat_count > 5:
+                    break
+            else:
+                repeat_count = 0
+            last_token = next_token
+        generated_text = self.tokenizer.decode(out)
+        return generated_text
 
     def perplexity(self, sentences):
         tokenized = [self.tokenizer.encode(s.lower()) for s in sentences]
         N = sum(len(sent) for sent in tokenized)
         log_prob = 0
         for sent in tokenized:
-            n_grams = list(nltk.ngrams(sent, self.n))
-            for gram in n_grams:
-                prob = self.ngram_probs.get(gram, 1 / (self.V + 1))
-                log_prob += -math.log(prob)
-        return math.exp(log_prob / N) if N > 0 else float('inf')
+            # Skip empty sentences
+            if len(sent) == 0:
+                continue
+            for i in range(len(sent)):
+                found = False
+                # Try to use the highest order n-gram available
+                for n in range(self.n, 1, -1):
+                    if i - n + 1 >= 0:
+                        gram = tuple(sent[i - n + 1:i + 1])
+                        prob = self.ngram_probs[n].get(gram, None)
+                        if prob is not None:
+                            log_prob += -math.log(prob)
+                            found = True
+                            break
+                if not found:
+                    # Fallback to unigram probability
+                    unigram = sent[i]
+                    prob = (self.unigram_counts.get(unigram, 0) + 1) / (sum(self.unigram_counts.values()) + self.V)
+                    log_prob += -math.log(prob)
+        return math.exp(log_prob / N) 
 
     def evaluate(
         self,
@@ -98,8 +134,7 @@ class NgramGenerator(BaseGenerativeModel):
         Returns a dictionary with the perplexity score and generated samples.
         """
         ppl = self.perplexity(X)
-
-        # Example prompts for TripAdvisor reviews
+        
         prompts = [
             "The hotel was",
             "Our stay at the resort",
@@ -110,22 +145,22 @@ class NgramGenerator(BaseGenerativeModel):
 
         generations = []
         for prompt in prompts:
-            generated = self.generate(prompt, max_length=100)
+            generated = self.generate(prompt, max_length=20)
             generations.append({"prompt": prompt, "generated": generated})
 
         return {"perplexity": ppl, "generated_samples": generations}
 
     def save(self, path):
         with open(path, 'w', encoding='utf-8') as f:
-            json.dump({'n': self.n, 'ngram_probs': {str(k): v for k, v in self.ngram_probs.items()},
+            json.dump({'n': self.n, 'ngram_probs': {order: {str(k): v for k, v in probs.items()} for order, probs in self.ngram_probs.items()},
                        'vocab': list(self.vocab)}, f)
 
     @classmethod
     def load(cls, path):
         with open(path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        obj = cls(model_path=path, order=ORDER, tokenizer=WordTokenizer())
-        obj.ngram_probs = {eval(k): v for k, v in data['ngram_probs'].items()}
+        obj = cls(model_path=path, order=ORDER, tokenizer=BpeTokenizer())
+        obj.ngram_probs = {int(order): {eval(k): v for k, v in probs.items()} for order, probs in data['ngram_probs'].items()}
         obj.vocab = set(data['vocab'])
         obj.V = len(obj.vocab)
         return obj
@@ -140,7 +175,7 @@ def main():
     raw_data = pd.DataFrame(dataset['train'])
     df = raw_data.drop(columns=['stay_year', 'post_date', 'freq', 'lang'])
     df = df.dropna().drop_duplicates()
-    df = df.sample(n=min(10000, len(df))).reset_index(drop=True)  # limit for speed
+    df = df.sample(n=min(10000, len(df))).reset_index(drop=True)
 
     train_df, test_df = train_test_split(df, test_size=0.1, random_state=42)
     train_texts = list(train_df['review'])

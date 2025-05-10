@@ -11,4 +11,4 @@ model:
   type: "ngram"
   # checkpoint: "examples/Ngram/model.json"
   params:
-    order: 3
+    order: 15
