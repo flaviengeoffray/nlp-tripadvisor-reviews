@@ -23,3 +23,8 @@ class Config:
     seed: int = 42
     stratify: bool = True
     sample_size: Optional[int] = None
+
+    # Data augmentation
+    balance: bool = False
+    balance_percentage: float = 0.8
+    augmentation_methods: list[str] = None

@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from typing import Optional
 
 from .datasets.TripAdvisorDataset import TripAdvisorDataset
-
+from .augmentation.DataAugmentation import DataAugmentation
 
 def prepare_data(
     dataset_name: str = "jniimi/tripadvisor-review-rating",
@@ -16,10 +16,45 @@ def prepare_data(
     seed: int = 42,
     stratify: bool = True,
     sample_size: Optional[int] = None,
+    balance: bool = False,
+    balance_percentage: float = 0.8,
+    augmentation_methods: list[str] = ['synonym', 'random'],
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
+    print("Loading dataset...")
     raw = load_dataset(dataset_name)
     df = pd.DataFrame(raw["train"])
+    print("Dataset loaded.")
+
+    if balance:
+        print("Balancing dataset...")
+
+        print("Class distribution before balancing:")
+        print(df[label_col].value_counts())
+
+        augmenter = DataAugmentation(random_state=seed)
+        print("Augmentation methods:", augmentation_methods)
+        
+        # Équilibrer les classes minoritaires à un pourcentage de la classe majoritaire
+        class_counts = df[label_col].value_counts().to_dict()
+        max_count = max(class_counts.values())
+        target_counts = {label: int(max_count * balance_percentage) for label in class_counts if label != 5}
+        target_counts[5] = class_counts[5]  # Garder la classe 5 telle quelle
+
+        df = augmenter.balance_dataset(
+            df,
+            text_col='review',
+            label_col=label_col,
+            target_counts=target_counts,
+            methods=augmentation_methods
+        )
+        
+        print("Class distribution after balancing:")
+        print(df[label_col].value_counts())
+
+    if sample_size is not None:
+        print("Sample size:", sample_size)
+        df = df.sample(n=sample_size, random_state=seed)
 
     if sample_size is not None:
         print("DF SAMPLE", sample_size)
