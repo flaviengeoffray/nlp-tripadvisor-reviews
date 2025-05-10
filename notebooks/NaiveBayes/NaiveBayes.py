@@ -17,15 +17,12 @@ nltk.download('punkt')
 nltk.download('stopwords')
 
 # Chargement des données
-# Si vous avez déjà les données dans raw_data, utilisez directement cette variable
-# Si vous voulez charger avec datasets:
 from datasets import load_dataset
 ds = load_dataset("jniimi/tripadvisor-review-rating")
 raw_data = pd.DataFrame(ds['train'])
 
 # Préparation des données
 # On utilisera la colonne 'review' comme entrée et 'overall' comme cible
-# Puisque 'overall' est de type float, nous le convertissons en entier pour la classification
 def prepare_data(df):
     df = df.copy()
     # Suppression des lignes avec des valeurs manquantes
@@ -34,6 +31,22 @@ def prepare_data(df):
     df['overall'] = df['overall'].astype(int)
     return df
 
+def char_tokenize(text):
+    """Fonction de tokenisation personnalisée pour les caractères."""
+    # Tokenisation par caractères
+    tokens = list(text)
+    # Filtrage des stop words et des tokens courts
+    tokens = [token for token in tokens if token not in stopwords.words('english') and len(token) > 2]
+    return tokens
+
+def byte_tokenize(text):
+    """Fonction de tokenisation personnalisée pour les octets."""
+    # Tokenisation par octets
+    tokens = list(text.encode('utf-8'))
+    # Filtrage des stop words et des tokens courts
+    tokens = [token for token in tokens if token not in stopwords.words('english') and len(token) > 2]
+    return tokens    
+
 def custom_tokenizer(tokenizer_type):
     """Fonction pour créer un tokenizer personnalisé avec différentes méthodes."""
     stop_words = set(stopwords.words('english'))
@@ -41,10 +54,10 @@ def custom_tokenizer(tokenizer_type):
     def tokenize(text):
         if tokenizer_type == 'word_tokenize':
             tokens = word_tokenize(text.lower())
-        elif tokenizer_type == 'wordpunct':
-            tokens = WordPunctTokenizer().tokenize(text.lower())
-        elif tokenizer_type == 'tweet':
-            tokens = TweetTokenizer().tokenize(text.lower())
+        elif tokenizer_type == 'char':
+            tokens = char_tokenize(text)
+        elif tokenizer_type == 'byte':
+            tokens = byte_tokenize(text)
         else:
             tokens = text.lower().split()  # Tokenisation simple par espace
         

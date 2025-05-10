@@ -8,6 +8,7 @@ __pycache__/
 *.bz2
 *.pt
 *.json
+*.safetensor
 
 # C extensions
 *.so

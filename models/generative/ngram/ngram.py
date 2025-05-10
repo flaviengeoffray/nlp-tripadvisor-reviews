@@ -1,3 +1,4 @@
+from typing import Any
 from data.tokenizers.base import BaseTokenizer
 from datasets import load_dataset
 import pandas as pd
@@ -14,29 +15,48 @@ from data.tokenizers.bpe import BpeTokenizer
 
 nltk.download('punkt', quiet=True)
 
+class WordTokenizer:
+    """A simple word-level tokenizer using nltk."""
+    def encode(self, text):
+        return nltk.word_tokenize(text)
+    def decode(self, tokens):
+        return " ".join(tokens)
+
 class NgramGenerator(BaseGenerativeModel):
-    def __init__(self, model_path, **kwargs):
+    def __init__(self, model_path=None, **kwargs):
         self.n = kwargs.pop("order", ORDER)
         self.ngram_probs = defaultdict(float)
         self.unigram_counts = Counter()
         self.vocab = set()
         self.V = 0
-        self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", BpeTokenizer())
+        # Use word-level tokenizer by default
+        self.tokenizer: Any = kwargs.pop("tokenizer", WordTokenizer())
 
     def fit(self, X_train, y_train, X_val, y_val):
+        print("[NgramGenerator] Starting training...")
         tokenized = [self.tokenizer.encode(s.lower()) for s in X_train]
+        print(f"[NgramGenerator] Tokenized {len(tokenized)} sentences.")
         self.unigram_counts = Counter([w for sent in tokenized for w in sent])
         self.V = len(self.unigram_counts)
         self.vocab = set(self.unigram_counts.keys())
+        print(f"[NgramGenerator] Vocabulary size: {self.V}")
         n_grams = [tuple(gram) for sent in tokenized for gram in nltk.ngrams(sent, self.n)]
         ngram_counts = Counter(n_grams)
-        for gram, count in ngram_counts.items():
+        print(f"[NgramGenerator] Extracted {len(ngram_counts)} unique {self.n}-grams.")
+        for i, (gram, count) in enumerate(ngram_counts.items()):
             context = gram[:-1]
-            context_count = self.unigram_counts[context[-1]] if context else sum(self.unigram_counts.values())
+            # context_count: count of context in the data
+            if context:
+                context_count = sum(ngram_counts[g] for g in ngram_counts if g[:-1] == context)
+            else:
+                context_count = sum(self.unigram_counts.values())
             self.ngram_probs[gram] = (count + 1) / (context_count + self.V)
+            if i % 100000 == 0 and i > 0:
+                print(f"[NgramGenerator] Processed {i} n-grams...")
+        print("[NgramGenerator] Training complete.")
 
     def infer_next_token(self, tokens):
-        # tokens: list of token ids
+        # tokens: list of word tokens
         for n in range(self.n, 1, -1):
             if len(tokens) >= n - 1:
                 context = tuple(tokens[-(n-1):])
@@ -46,7 +66,7 @@ class NgramGenerator(BaseGenerativeModel):
         return None
 
     def generate(self, prompt, max_length=50):
-        tokens = self.tokenizer.encode(prompt)
+        tokens = self.tokenizer.encode(prompt.lower())
         out = tokens[:]
         for _ in range(max_length):
             next_token = self.infer_next_token(out)
@@ -66,6 +86,35 @@ class NgramGenerator(BaseGenerativeModel):
                 log_prob += -math.log(prob)
         return math.exp(log_prob / N) if N > 0 else float('inf')
 
+    def evaluate(
+        self,
+        X,
+        y=None,
+        y_pred=None,
+    ):
+        """
+        Evaluate the model on the given data using perplexity.
+        Also, for several representative prompts, generate text and return the results.
+        Returns a dictionary with the perplexity score and generated samples.
+        """
+        ppl = self.perplexity(X)
+
+        # Example prompts for TripAdvisor reviews
+        prompts = [
+            "The hotel was",
+            "Our stay at the resort",
+            "The room was clean and",
+            "Breakfast was included and",
+            "I would not recommend",
+        ]
+
+        generations = []
+        for prompt in prompts:
+            generated = self.generate(prompt, max_length=100)
+            generations.append({"prompt": prompt, "generated": generated})
+
+        return {"perplexity": ppl, "generated_samples": generations}
+
     def save(self, path):
         with open(path, 'w', encoding='utf-8') as f:
             json.dump({'n': self.n, 'ngram_probs': {str(k): v for k, v in self.ngram_probs.items()},
@@ -75,7 +124,7 @@ class NgramGenerator(BaseGenerativeModel):
     def load(cls, path):
         with open(path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        obj = cls(model_path=path,order=ORDER, tokenizer=BpeTokenizer())
+        obj = cls(model_path=path, order=ORDER, tokenizer=WordTokenizer())
         obj.ngram_probs = {eval(k): v for k, v in data['ngram_probs'].items()}
         obj.vocab = set(data['vocab'])
         obj.V = len(obj.vocab)
@@ -110,7 +159,7 @@ def main():
 
     if os.path.exists(model_path):
         print("Loading existing ngram model...")
-        model = NgramGenerator.load(model_path, tokenizer)
+        model = NgramGenerator.load(model_path)
     else:
         print("Training ngram model...")
         model = NgramGenerator()

@@ -1,15 +1,13 @@
 from pathlib import Path
 from abc import abstractmethod
-from typing import Any, List, Literal, Tuple, Union, Dict
+from typing import Any, List, Tuple, Dict
 
 import numpy as np
-import scipy as sp
 import torch
 from torch import Tensor
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from tqdm import tqdm
 
 from .base import BaseModel
 from data.tokenizers.base import BaseTokenizer
@@ -71,8 +69,8 @@ class BaseTorchModel(nn.Module, BaseModel):
 
         self.scheduler: ReduceLROnPlateau = (
             ReduceLROnPlateau(
-                self.optimizer, mode="min", factor=0.8, patience=5, verbose=True
-            )
+                self.optimizer, mode="min", factor=0.8, patience=5
+            ) # verbose=True
             if scheduler
             else None
         )
@@ -142,64 +140,47 @@ class BaseTorchModel(nn.Module, BaseModel):
             self.train()
             train_loss = 0.0
 
-            # for X, y in tqdm(
-            #     train_loader, desc=f"Processing epoch: {epoch}/{self.epochs}"
-            # ):
-            #     X, y = X.to(self.device), y.to(self.device)
-            #     self.optimizer.zero_grad()
-            #     outputs = self.forward(X)
-            #     loss = self.criterion(outputs, y)
-            #     loss.backward()
-            #     self.optimizer.step()
-            #     train_loss += loss.item()
             train_loss = self._train_loop(train_loader, epoch)
 
             train_loss = train_loss / len(train_loader)
 
+            self.save(self.model_path / "last_model.pt", epoch)
+
             self.eval()
-            # val_loss = 0.0
-
-            # all_preds: List[np.ndarray] = []
-            # all_labels: List[int] = []
-
-            # with torch.no_grad():
-            #     for X, y in val_loader:
-            #         X, y = X.to(self.device), y.to(self.device)
-            #         outputs = self.forward(X)
-
-            #         all_preds.append(outputs.detach().cpu().numpy())
-            #         all_labels.extend(y.cpu().numpy().tolist())
-
-            #         loss = self.criterion(outputs, y)
-            #         val_loss += loss.item()
 
             all_preds, all_labels, val_loss = self._val_loop(val_loader)
 
             val_loss /= len(val_loader)
 
             all_preds: np.ndarray = np.concatenate(all_preds, axis=0)
-            all_labels: np.ndarray = np.array(all_labels, dtype=int)
+            # all_labels: np.ndarray = np.array(all_labels, dtype=int)
+
+            if all(isinstance(label, str) for label in all_labels[:5]):  # Check if labels are strings
+                all_labels = all_labels  # Keep as list of strings
+            else:
+                all_labels = np.array(all_labels, dtype=int)
 
             print(
                 f"Epoch {epoch+1}/{self.epochs} — Train Loss: {train_loss:.4f} — Val Loss: {val_loss:.4f}"
             )
 
-            metrics: Dict[str, float] = self.evaluate(
-                X=None, y=all_labels, y_pred=all_preds
-            )
+            if (epoch+1) % 10 == 0:
+                metrics: Dict[str, float] = self.evaluate(
+                    X=None, y=all_labels, y_pred=all_preds
+                )
 
-            print(
-                "Val Metrics — ",
-                ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()),
-            )
+                print(
+                    "Val Metrics — ",
+                    ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()),
+                )
 
-            from utils import save_metrics  # FIXME: Crado
+                from utils import save_metrics  # FIXME: Crado
 
-            save_metrics(
-                metrics=metrics,
-                epoch=epoch,
-                path=self.model_path / "train_metrics.json",
-            )
+                save_metrics(
+                    metrics=metrics,
+                    epoch=epoch,
+                    path=self.model_path / "train_metrics.json",
+                )
 
             if self.scheduler:
                 self.scheduler.step(val_loss)

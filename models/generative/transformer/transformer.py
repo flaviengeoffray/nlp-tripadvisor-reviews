@@ -1,32 +1,18 @@
 import math
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
+import numpy as np
 import torch
 from torch import nn
 from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-# import torchmetrics
 # from torch.utils.tensorboard import SummaryWriter
 
 from data.datasets.TripAdvisorDataset import TripAdvisorDataset, causal_mask
 
-from data.tokenizers.base import BaseTokenizer
-from data.tokenizers.bpe import BpeTokenizer
 from models.base_pytorch import BaseTorchModel
 from models.generative.base import BaseGenerativeModel
-
-
-# dim: int
-# n_layers: int
-# head_dim: int
-# hidden_dim: int
-# n_heads: int
-# n_kv_heads: int
-# norm_eps: float
-# vocab_size: int
-
-# max_batch_size: int = 0
 
 
 class Embedding(nn.Module):
@@ -370,7 +356,7 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
         self.max_target_len: int = kwargs.pop("max_target_len", 256)
 
         self.max_input_len: int = kwargs.pop("max_input_len", 32)
-        self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", BpeTokenizer())
+        # self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", BpeTokenizer())
 
         # Embeddings Layers
         self.input_embedding: Embedding = Embedding(self.d_model, self.vocab_size)
@@ -414,6 +400,8 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
         # TODO: init params with xavier_uniform
 
         super().__init__(model_path=model_path, **kwargs)
+
+        assert self.tokenizer is not None, "Transformer model must have a tokenizer."
 
         self.criterion: nn.Module = kwargs.pop(
             "criterion",
@@ -477,152 +465,9 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
         )
 
         train_loader = DataLoader(train_ds, batch_size=self.batch_size, shuffle=shuffle)
-        val_loader = DataLoader(val_ds, batch_size=1, shuffle=True)
+        val_loader = DataLoader(val_ds, batch_size=self.batch_size, shuffle=True)
 
         return train_loader, val_loader
-
-    def fit(
-        self,
-        X_train: Any,
-        y_train: Any,
-        X_val: Any,
-        y_val: Any,
-    ) -> None:
-
-        self.to(self.device)
-        # patience_counter = 0
-        # best_val_loss = float("inf")
-
-        train_loader, val_loader = self._get_dataloaders(X_train, y_train, X_val, y_val)
-
-        for epoch in range(self.start_epoch, self.epochs):
-            torch.cuda.empty_cache()
-            self.train()
-            train_loss = 0.0
-
-            for B in tqdm(
-                train_loader, desc=f"Processing epoch: {epoch}/{self.epochs}"
-            ):
-
-                self.optimizer.zero_grad()
-
-                encoder_input: Tensor = B["encoder_input"].to(
-                    self.device
-                )  # (B, seq_len)
-                decoder_input: Tensor = B["decoder_input"].to(
-                    self.device
-                )  # (B, seq_len)
-                encoder_mask: Tensor = B["encoder_mask"].to(
-                    self.device
-                )  # (B, 1, 1, seq_len)
-                decoder_mask: Tensor = B["decoder_mask"].to(
-                    self.device
-                )  # (B, 1, seq_len, seq_len)
-
-                encoder_output: Tensor = self.encode(
-                    encoder_input, encoder_mask
-                )  # (B, seq_len, d_model)
-                decoder_output: Tensor = self.decode(
-                    encoder_output, encoder_mask, decoder_input, decoder_mask
-                )  # (B, seq_len, d_model)
-
-                projection_output: Tensor = self.project(
-                    decoder_output
-                )  # (B, seq_len, vocab_size)
-
-                label: Tensor = B["label"].to(self.device)  # (B, seq_len)
-
-                loss: Tensor = self.criterion(
-                    projection_output.view(-1, self.vocab_size), label.view(-1)
-                )
-
-                loss.backward()
-                self.optimizer.step()
-
-                train_loss += loss.item()
-
-            self.save(self.model_path / "last_model.pt", epoch)
-
-            train_loss = train_loss / len(train_loader)
-
-            self.eval()
-            # val_loss = 0.0
-
-            source_texts = []
-            expected_texts = []
-            preds = []
-
-            with torch.no_grad():
-                for B in val_loader:
-                    encoder_input: Tensor = B["encoder_input"].to(
-                        self.device
-                    )  # (B, seq_len)
-                    encoder_mask: Tensor = B["encoder_mask"].to(
-                        self.device
-                    )  # (B, 1, 1, seq_len)
-
-                    label: Tensor = B["label"].to(self.device)  # (B, seq_len)
-
-                    assert (
-                        encoder_input.size(0) == 1
-                    ), "Validation batch size must be equals to 1."
-
-                    output: Tensor = self.inference(encoder_input, encoder_mask)
-                    output_text = self.tokenizer.decode(output.detach().cpu().tolist())
-
-                    source_text = B["source_text"][0]
-                    target_text = B["target_text"][0]
-
-                    source_texts.append(source_text)
-                    expected_texts.append(target_text)
-                    preds.append(output_text)
-
-                    print(f"SOURCE: {source_text}")
-                    print(f"TARGET: {target_text}")
-                    print(f"PREDICTED: {output_text}")
-
-                    # loss: Tensor = self.criterion(
-                    #     projection_output.view(-1, self.vocab_size), label.view(-1)
-                    # )
-                    # val_loss += loss.item()
-            # val_loss /= len(val_loader)
-
-            # all_preds: np.ndarray = np.concatenate(all_preds, axis=0)
-            # all_labels: np.ndarray = np.array(all_labels, dtype=int)
-
-            print(
-                f"Epoch {epoch+1}/{self.epochs} — Train Loss: {train_loss:.4f}"  # — Val Loss: {val_loss:.4f}"
-            )
-
-            metrics: Dict[str, float] = self.evaluate(
-                X=source_texts, y=expected_texts, y_pred=preds
-            )
-
-            print(
-                "Val Metrics — ",
-                ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()),
-            )
-
-            from utils import save_metrics  # FIXME: Crado
-
-            save_metrics(
-                metrics=metrics,
-                epoch=epoch,
-                path=self.model_path / "train_metrics.json",
-            )
-
-            # if self.scheduler:
-            #     self.scheduler.step(val_loss)
-
-            # if val_loss < best_val_loss:
-            #     best_val_loss = val_loss
-            #     patience_counter = 0
-            #     self.save(self.model_path / "best_model.pt")
-            # else:
-            #     patience_counter += 1
-            #     if patience_counter >= self.patience:
-            #         print(f"Early stopping at epoch {epoch+1}.")
-            #         break
 
     def inference(self, encoder_input: Tensor, encoder_mask: Tensor) -> Tensor:
 
@@ -650,7 +495,14 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
             )
 
             # This is a greedy decoding since we always take the max probable token
-            next_token = torch.max(self.project(decoder_output[:, -1]), dim=-1)[1]
+            # next_token = torch.max(self.project(decoder_output[:, -1]), dim=-1)[1]
+
+            # Topk decoding
+            topk = 10
+            logits = self.project(decoder_output[:, -1])
+            topk_logits, topk_indices = torch.topk(logits, topk)
+            probs = torch.softmax(topk_logits, dim=-1)
+            next_token = topk_indices[0, torch.multinomial(probs, num_samples=1)]
 
             decoder_input = torch.cat(
                 [
@@ -698,10 +550,100 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
                 eos,
                 torch.tensor([pad] * source_padding_len, dtype=torch.int64),
             ]
-        )
-        encoder_mask: Tensor = (encoder_input != pad).unsqueeze(0).unsqueeze(0).int()
+        ).unsqueeze(0)
+        encoder_mask: Tensor = (encoder_input != pad).unsqueeze(1).unsqueeze(2).int()
 
         with torch.no_grad():
             output = self.inference(encoder_input, encoder_mask)
 
         return self.tokenizer.decode(output.detach().cpu().tolist())
+
+    def _train_loop(self, train_loader: DataLoader, epoch: int) -> float:
+
+        train_loss: float = 0.0
+
+        for B in tqdm(train_loader, desc=f"Processing epoch: {epoch}/{self.epochs}"):
+
+            self.optimizer.zero_grad()
+
+            encoder_input: Tensor = B["encoder_input"].to(self.device)  # (B, seq_len)
+            decoder_input: Tensor = B["decoder_input"].to(self.device)  # (B, seq_len)
+            encoder_mask: Tensor = B["encoder_mask"].to(
+                self.device
+            )  # (B, 1, 1, seq_len)
+            decoder_mask: Tensor = B["decoder_mask"].to(
+                self.device
+            )  # (B, 1, seq_len, seq_len)
+
+            encoder_output: Tensor = self.encode(
+                encoder_input, encoder_mask
+            )  # (B, seq_len, d_model)
+            decoder_output: Tensor = self.decode(
+                encoder_output, encoder_mask, decoder_input, decoder_mask
+            )  # (B, seq_len, d_model)
+
+            projection_output: Tensor = self.project(
+                decoder_output
+            )  # (B, seq_len, vocab_size)
+
+            label: Tensor = B["label"].to(self.device)  # (B, seq_len)
+
+            loss: Tensor = self.criterion(
+                projection_output.view(-1, self.vocab_size), label.view(-1)
+            )
+
+            loss.backward()
+            self.optimizer.step()
+
+            train_loss += loss.item()
+
+        return train_loss
+
+    def _val_loop(
+        self, val_loader: DataLoader
+    ) -> Tuple[List[np.ndarray], List[int], float]:
+
+        source_texts = []
+        expected_texts = []
+        preds = []
+
+        val_loss: float = 0.0
+
+        with torch.no_grad():
+            i = 0
+            for B in val_loader:
+                encoder_input: Tensor = B["encoder_input"].to(
+                    self.device
+                )  # (B, seq_len)
+                encoder_mask: Tensor = B["encoder_mask"].to(
+                    self.device
+                )  # (B, 1, 1, seq_len)
+
+                label: Tensor = B["label"].to(self.device)  # (B, seq_len)
+
+                # assert (
+                #     encoder_input.size(0) == 1
+                # ), "Validation batch size must be equals to 1."
+
+                output: Tensor = self.inference(encoder_input, encoder_mask)
+
+                # loss: Tensor = self.criterion(
+                #     projection_output.view(-1, self.vocab_size), label.view(-1)
+                # )
+
+                output_text = self.tokenizer.decode(output.detach().cpu().tolist())
+
+                source_text = B["source_text"][0]
+                target_text = B["target_text"][0]
+
+                source_texts.append(source_text)
+                expected_texts.append(target_text)
+                preds.append(output_text)
+
+                if i % 100 == 0:
+                    print(f"SOURCE: {source_text}")
+                    print(f"TARGET: {target_text}")
+                    print(f"PREDICTED: {output_text}")
+                i += 1
+
+        return preds, expected_texts, val_loss

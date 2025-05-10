@@ -22,23 +22,3 @@ class BaseGenerativeModel(BaseModel, ABC):
         """
         raise NotImplementedError
 
-    def evaluate(
-        self,
-        X: Union[np.ndarray, Tensor],
-        y: Union[np.ndarray, Tensor],
-        y_pred: Union[np.ndarray, Tensor] = None,
-    ) -> Dict[str, float]:
-        metric = torchmetrics.CharErrorRate()
-        cer = metric(y_pred, y)
-
-        metric = torchmetrics.WordErrorRate()
-        wer = metric(y_pred, y)
-
-        metric = torchmetrics.BLEUScore()
-        bleu = metric(y_pred, y)
-
-        return {
-            "cer": cer,
-            "wer": wer,
-            "bleu": bleu,
-        }

@@ -1,427 +1,413 @@
-from datasets import load_dataset
-import pandas as pd
-import os
+import math
+import numpy as np
+from pathlib import Path
+from typing import Dict, List, Any, Tuple, Optional, Union
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-from sklearn.model_selection import train_test_split
-from collections import Counter
+from torch import nn
+from torch import Tensor
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 import json
-import gc
-import re
-import nltk
-from nltk.tokenize import word_tokenize
 
-from utils import WordLevelReviewDataset, collate_fn
-from eval import evaluate_model
-from config import BATCH_SIZE, EMBED_SIZE, HIDDEN_SIZE, MAX_SAMPLES, EPOCHS, LEARNING_RATE
+import torchmetrics
+from torchmetrics.text.bleu import BLEUScore
+from torchmetrics.text.rouge import ROUGEScore
 
-nltk.download('punkt', quiet=True)
+from data.datasets.TripAdvisorDataset import TripAdvisorDataset, causal_mask
 
-# Use CPU with explicit memory management
-device = "cpu" # torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print("Using device:", device)
+from data.tokenizers.base import BaseTokenizer
+from data.tokenizers.bpe import BpeTokenizer
+from models.base_pytorch import BaseTorchModel
+from models.generative.base import BaseGenerativeModel
 
-class ReviewGenerator(nn.Module):
-    """RNN-based review generator with LSTM and attention mechanism"""
-    def __init__(self, vocab_size, embed_size, hidden_size, num_layers=1, dropout=0.2):
-        super().__init__()
-        self.embed = nn.Embedding(vocab_size, embed_size) # This creates an embedding layer that maps each word (represented by an integer index) in the vocabulary to a dense vector of fixed size (embed_size). It is used to convert sparse word indices into dense representations for input to the neural network.
-        self.title_encoder = nn.LSTM(embed_size, hidden_size, batch_first=True)
-        
-        self.fc_features = nn.Linear(6, hidden_size)
-        self.dropout = nn.Dropout(dropout)
-        
+
+class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
+    def __init__(
+        self,
+        model_path,
+        **kwargs
+    ):
+        nn.Module.__init__(self)
+        self.vocab_size: int = kwargs.pop("vocab_size", 5000)  
+        self.embedding_dim: int = kwargs.pop("embedding_dim", 256)
+        self.hidden_dim = kwargs.pop("hidden_dim", 512)
+        self.num_layers = kwargs.pop("num_layers", 2)
+        self.dropout_rate = kwargs.pop("dropout", 0.3)
+
+        # Define the model architecture
+        self.embedding = nn.Embedding(self.vocab_size, self.embedding_dim)
         self.lstm = nn.LSTM(
-            embed_size + hidden_size * 2, 
-            hidden_size, 
-            num_layers, 
-            batch_first=True,
-            dropout=dropout if num_layers > 1 else 0
+            input_size=self.embedding_dim,
+            hidden_size=self.hidden_dim,
+            num_layers=self.num_layers,
+            dropout=self.dropout_rate if self.num_layers > 1 else 0,
+            batch_first=True
+        )
+        self.dropout = nn.Dropout(self.dropout_rate)
+        self.fc = nn.Linear(self.hidden_dim, self.vocab_size)
+
+        # Initialize base classes properly
+        BaseTorchModel.__init__(self, model_path=model_path, **kwargs)
+        BaseGenerativeModel.__init__(self, model_path)
+
+    def forward(self, x, hidden=None):
+        """
+        Forward pass through the LSTM Generator
+        
+        Args:
+            x: Input tensor of token IDs [batch_size, seq_len]
+            hidden: Initial hidden state (optional)
+            
+        Returns:
+            output: Probability distribution over vocabulary for next token
+            hidden: Updated hidden state
+        """
+        # x shape: [batch_size, seq_len]
+        batch_size = x.size(0)
+        
+        # Embed the input
+        embedded = self.embedding(x)  # [batch_size, seq_len, embedding_dim]
+        
+        # Initialize hidden state if not provided
+        if hidden is None:
+            h0 = torch.zeros(self.num_layers, batch_size, self.hidden_dim).to(self.device)
+            c0 = torch.zeros(self.num_layers, batch_size, self.hidden_dim).to(self.device)
+            hidden = (h0, c0)
+        
+        # Pass through LSTM
+        output, hidden = self.lstm(embedded, hidden)
+        # output shape: [batch_size, seq_len, hidden_dim]
+        
+        # Apply dropout
+        output = self.dropout(output)
+        
+        # Pass through fully connected layer
+        output = self.fc(output)
+        # output shape: [batch_size, seq_len, vocab_size]
+        
+        return output, hidden
+    
+    def _get_dataloaders(
+        self,
+        X_train: Any,
+        y_train: Any,
+        X_val: Any,
+        y_val: Any,
+        shuffle: bool = True,
+    ) -> Tuple[DataLoader, DataLoader]:
+        """
+        Override the base _get_dataloaders method to handle text data properly
+        """
+        # For generative models, we'll use a custom dataset
+        train_dataset = TripAdvisorDataset(
+            texts=X_train,
+            ratings=y_train,
+            tokenizer=self.tokenizer,
+            max_input_len=64,
+            max_target_len=256,
         )
         
-        self.fc_out = nn.Linear(hidden_size, vocab_size)
+        val_dataset = TripAdvisorDataset(
+            texts=X_val,
+            ratings=y_val,
+            tokenizer=self.tokenizer,
+            max_input_len=64,
+            max_target_len=256,
+        )
+        
+        # Define collate function to handle variable length sequences
+        def collate_fn(batch):
+            # Create a dictionary to store batch data
+            batch_data = {
+                "encoder_input": [],
+                "decoder_input": [],
+                "encoder_mask": [],
+                "decoder_mask": [],
+                "label": [],
+                "source_text": [],
+                "target_text": []
+            }
+            
+            # Collect all items across the batch
+            for item in batch:
+                for key in batch_data:
+                    batch_data[key].append(item[key])
+            
+            # Stack tensors
+            for key in ["encoder_input", "decoder_input", "encoder_mask", "decoder_mask", "label"]:
+                batch_data[key] = torch.stack(batch_data[key])
 
-    def forward(self, features, title, review_in):
-        # Encode title
-        embedded_title = self.dropout(self.embed(title))
-        _, (h_title, _) = self.title_encoder(embedded_title)
-        h_title = h_title[-1].unsqueeze(1)
+            return batch_data
         
-        # Encode features
-        features_embedded = self.dropout(torch.relu(self.fc_features(features))).unsqueeze(1)
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=self.batch_size,
+            shuffle=shuffle,
+            collate_fn=collate_fn,
+        )
         
-        # Create context
-        context = torch.cat((h_title, features_embedded), dim=2)
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            collate_fn=collate_fn,
+        )
         
-        # Replicate context for each word in the review
-        batch_size, seq_len = review_in.size()
-        context = context.repeat(1, seq_len, 1)
+        return train_loader, val_loader
+    
+    def _train_loop(self, train_loader: DataLoader, epoch: int) -> float:
+        """
+        Training loop for one epoch
         
-        # Encode review input
-        embedded_review = self.dropout(self.embed(review_in))
+        Args:
+            train_loader: DataLoader for training data
+            epoch: Current epoch number
+            
+        Returns:
+            train_loss: Average training loss for this epoch
+        """
+        self.train()
+        train_loss = 0.0
         
-        # Concatenate review with context
-        lstm_input = torch.cat((embedded_review, context), dim=2)
+        for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}/{self.epochs}"):
+            # Get input and target sequences
+            input_seq = batch["decoder_input"].to(self.device)
+            target_seq = batch["label"].to(self.device)
+            mask = batch["decoder_mask"].squeeze(1).to(self.device)  # Remove batch dimension from mask
+            
+            # Zero gradients
+            self.optimizer.zero_grad()
+            
+            # Forward pass
+            output, _ = self.forward(input_seq)
+            
+            # Reshape output and target for cross entropy loss
+            # output: [batch_size, seq_len, vocab_size] -> [batch_size * seq_len, vocab_size]
+            # target: [batch_size, seq_len] -> [batch_size * seq_len]
+            output = output.reshape(-1, self.vocab_size)
+            target_seq = target_seq.reshape(-1)
+            
+            # Create a mask to ignore padding tokens in loss calculation
+            # -1 for ignored positions (PAD tokens)
+            pad_mask = target_seq != self.tokenizer.token_to_id("[PAD]")
+            
+            # Create masked targets and outputs
+            masked_target = target_seq[pad_mask]
+            masked_output = output[pad_mask]
+            
+            # Calculate loss
+            loss = self.criterion(masked_output, masked_target)
+            
+            # Backward pass and optimize
+            loss.backward()
+            # Apply gradient clipping to prevent exploding gradients
+            torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
+            self.optimizer.step()
+            
+            train_loss += loss.item()
+            
+        return train_loss
+ 
+    def _val_loop(self, val_loader: DataLoader) -> Tuple[List[np.ndarray], List[str], float]:
+        """
+        Validation loop
         
-        # Process with LSTM
-        output, _ = self.lstm(lstm_input)
-        logits = self.fc_out(output)
-        
-        return logits
-
-    def generate(self, features, title, vocab, max_length=50, temperature=0.7, top_k=40):
-        """Generate text with better sampling strategies"""
-        device = next(self.parameters()).device
+        Args:
+            val_loader: DataLoader for validation data
+            
+        Returns:
+            all_preds: List of prediction arrays
+            all_labels: List of true labels
+            val_loss: Total validation loss
+        """
         self.eval()
-        
-        # Get vocabulary mappings
-        idx2word = {idx: word for word, idx in vocab.items()}
-        start_token_idx = vocab.get("<START>", 2)
-        end_token_idx = vocab.get("<END>", 3)
+        val_loss = 0.0
+        all_preds = []
+        all_labels = []
         
         with torch.no_grad():
-            # Encode title
-            embedded_title = self.embed(title.unsqueeze(0))
-            _, (h_title, _) = self.title_encoder(embedded_title)
-            h_title = h_title[-1].unsqueeze(1)
-            
-            # Encode features
-            features_embedded = torch.relu(self.fc_features(features.unsqueeze(0))).unsqueeze(1)
-            
-            # Create context
-            context = torch.cat((h_title, features_embedded), dim=2)
-            
-            # Start with the start token
-            current_token = torch.tensor([[start_token_idx]], device=device)
-            generated = []
-            hidden = None
-            
-            # Generate sequence
-            for _ in range(max_length):
-                # Encode current token
-                embedded_input = self.embed(current_token)
+            for batch in val_loader:
+                # Get input and target sequences
+                input_seq = batch["decoder_input"].to(self.device)
+                target_seq = batch["label"].to(self.device)
                 
-                # Concatenate with context
-                lstm_input = torch.cat((embedded_input, context), dim=2)
+                # Forward pass
+                output, _ = self.forward(input_seq)
                 
                 # Get predictions
-                output, hidden = self.lstm(lstm_input, hidden)
-                logits = self.fc_out(output.squeeze(1))
+                _, preds = torch.max(output, dim=2)
                 
-                # Apply temperature and top-k sampling
-                logits = logits / temperature
-                
-                # Apply top-k filtering
-                if top_k > 0:
-                    indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
-                    logits[indices_to_remove] = float('-inf')
-                
-                # Sample from the filtered distribution
-                probs = torch.softmax(logits, dim=-1)
-                next_token = torch.multinomial(probs, num_samples=1)
-                
-                token_idx = next_token.item()
-                
-                # Stop if end token is generated
-                if token_idx == end_token_idx:
-                    break
-                    
-                generated.append(token_idx)
-                current_token = next_token
-            
-            # Convert token indices to words
-            return ' '.join([idx2word.get(idx, "<UNK>") for idx in generated])
-        
-
-def train_model(model, train_loader, val_loader, epochs=EPOCHS, lr=0.001, clip_grad=1.0,
-               device=device, checkpoint_dir='checkpoints'):
-    """Train model with gradient clipping and learning rate scheduling"""
-    os.makedirs(checkpoint_dir, exist_ok=True)
-    
-    optimizer = optim.Adam(model.parameters(), lr=lr) # Adam optimizer for adaptive learning rate
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=2, factor=0.5) # Reduce learning rate if validation loss doesn't improve
-    criterion = nn.CrossEntropyLoss(ignore_index=0) # The ignore_index is set to 0 for padding token
-
-    model = model.to(device)
-    
-    best_val_loss = float('inf')
-    train_losses = []
-    val_losses = []
-    
-    for epoch in range(epochs):
-        model.train()
-        total_loss = 0
-        batch_count = 0
-        
-        for features, titles, inputs, targets in train_loader:
-            features = features.to(device)
-            titles = titles.to(device)
-            inputs = inputs.to(device)
-            targets = targets.to(device)
-            
-            optimizer.zero_grad()
-            outputs = model(features, titles, inputs)
-            
-            # Reshape for loss calculation
-            outputs_flat = outputs.reshape(-1, outputs.size(-1))
-            targets_flat = targets.reshape(-1)
-            
-            loss = criterion(outputs_flat, targets_flat)
-            loss.backward()
-            
-            # Clip gradients to prevent exploding gradients
-            torch.nn.utils.clip_grad_norm_(model.parameters(), clip_grad)
-            
-            optimizer.step()
-            
-            total_loss += loss.item()
-            batch_count += 1
-            
-            # Print progress
-            if batch_count % 5 == 0:
-                print(f"Epoch {epoch+1}, Batch {batch_count}/{len(train_loader)}, Loss: {loss.item():.4f}")
-                # Free memory
-                gc.collect()
-                torch.cuda.empty_cache() if torch.cuda.is_available() else None
-        
-        avg_train_loss = total_loss / len(train_loader)
-        train_losses.append(avg_train_loss)
-        
-        # Validation phase
-        model.eval()
-        val_loss = 0
-        with torch.no_grad():
-            for features, titles, inputs, targets in val_loader:
-                features = features.to(device)
-                titles = titles.to(device)
-                inputs = inputs.to(device)
-                targets = targets.to(device)
-                
-                outputs = model(features, titles, inputs)
-                outputs_flat = outputs.reshape(-1, outputs.size(-1))
-                targets_flat = targets.reshape(-1)
-                
-                loss = criterion(outputs_flat, targets_flat)
+                # Calculate loss
+                output_flat = output.reshape(-1, self.vocab_size)
+                target_flat = target_seq.reshape(-1)
+                pad_mask = target_flat != self.tokenizer.token_to_id("[PAD]")
+                loss = self.criterion(output_flat[pad_mask], target_flat[pad_mask])
                 val_loss += loss.item()
                 
-                # Free memory
-                del features, titles, inputs, targets, outputs, outputs_flat, targets_flat
-                gc.collect()
-        
-        avg_val_loss = val_loss / len(val_loader)
-        val_losses.append(avg_val_loss)
-        
-        # Update learning rate based on validation loss
-        scheduler.step(avg_val_loss)
-        
-        print(f"Epoch {epoch+1}/{epochs} - Train Loss: {avg_train_loss:.4f} - Val Loss: {avg_val_loss:.4f} - LR: {optimizer.param_groups[0]['lr']:.6f}")
-        
-        # Save best model
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
-            checkpoint_path = os.path.join(checkpoint_dir, 'best_model.pth')
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'train_loss': avg_train_loss,
-                'val_loss': avg_val_loss,
-                'train_losses': train_losses,
-                'val_losses': val_losses,
-            }, checkpoint_path)
-            print(f"Best model saved to {checkpoint_path}")
+                # Store predictions
+                all_preds.append(preds.cpu().numpy())
+                
+                # Convert targets to text
+                for i in range(target_seq.size(0)):
+                    seq = target_seq[i].cpu().numpy()
+                    eos_pos = np.where(seq == self.tokenizer.token_to_id("[EOS]"))[0]
+                    if len(eos_pos) > 0:
+                        seq = seq[:eos_pos[0]+1]
+                    
+                    # Filter out special tokens
+                    seq = [t for t in seq if t not in [
+                        self.tokenizer.token_to_id("[PAD]"),
+                        self.tokenizer.token_to_id("[SOS]")
+                    ]]
+                    
+                    text = self.tokenizer.decode(seq)
+                    all_labels.append(text)
+
+        return all_preds, all_labels, val_loss
     
-    # Save final model
-    final_checkpoint_path = os.path.join(checkpoint_dir, 'final_model.pth')
-    torch.save({
-        'epoch': epochs-1,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'train_loss': avg_train_loss,
-        'val_loss': avg_val_loss,
-        'train_losses': train_losses,
-        'val_losses': val_losses,
-    }, final_checkpoint_path)
-    print(f"Final model saved to {final_checkpoint_path}")
     
-    return train_losses, val_losses
+    def evaluate(self, X: Union[np.ndarray, Tensor] = None, y: Union[np.ndarray, Tensor] = None, y_pred: Union[np.ndarray, Tensor] = None) -> Dict[str, float]:
+        """Evaluate the model with NLP metrics using torchmetrics"""
 
+        if y_pred is None:
+            # If predictions are not provided, generate them
+            _, y_pred, _ = self._val_loop(self._get_dataloaders(X, y, X, y, shuffle=False)[1])
 
-def save_vocab(vocab, path):
-    """Save vocabulary as JSON dictionary"""
-    with open(path, 'w', encoding='utf-8') as f:
-        json.dump(vocab, f, ensure_ascii=False, indent=2)
-    print(f"Vocabulary saved to {path}")
+        # Initialize metrics
+        bleu = BLEUScore(n_gram=1, smooth=True)
+        rouge = ROUGEScore()
+        wer = torchmetrics.WordErrorRate()
+        cer = torchmetrics.CharErrorRate()
+        
+        # Calculate BLEU score
+        # Ensure y_pred and y are lists of strings
+        y_pred = [self.tokenizer.decode(pred) for pred in y_pred]
 
+        bleu_score = bleu(y_pred, y)
 
-def load_vocab(path):
-    """Load vocabulary from JSON file"""
-    with open(path, 'r', encoding='utf-8') as f:
-        vocab = json.load(f)
-    print(f"Vocabulary loaded from {path}")
-    return vocab
+        # Calculate ROUGE scores
+        rouge_scores = rouge(y_pred, y)
 
+        # Calculate WER and CER
+        wer_score = wer(y_pred, y)
+        cer_score = cer(y_pred, y)
 
-def load_model(model_class, model_path, vocab_size, embed_size, hidden_size, device=device):
-    """Load a pre-trained model"""
-    model = model_class(vocab_size, embed_size, hidden_size, num_layers=2, dropout=0.2)
-    checkpoint = torch.load(model_path, map_location=device)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    model.to(device)
-    model.eval()
-    print(f"Model loaded from {model_path}")
-    return model
+        return {
+            "BLEU": bleu_score.item(),
+            "ROUGE-1": rouge_scores["rouge1_fmeasure"].item(),
+            "ROUGE-2": rouge_scores["rouge2_fmeasure"].item(),
+            "ROUGE-L": rouge_scores["rougeL_fmeasure"].item(),
+            "WER": wer_score.item(),
+            "CER": cer_score.item(),
+        }
+            
 
-
-def generate_reviews(model, vocab, titles, ratings_list, temperature=0.7, max_length=50):
-    """Generate multiple reviews for comparison"""
-    reviews = []
     
-    for i, (title, ratings) in enumerate(zip(titles, ratings_list)):
-        print(f"\nGenerating review {i+1}:")
-        print(f"Title: {title}")
-        print(f"Ratings: {ratings}")
+    def generate(self, rating, keywords, max_length=200, temperature=1.0, top_k=50, top_p=0.9):
+        """Generate a review based on rating and keywords"""
+        self.eval()
         
-        # Encode title
-        title_encoded = [vocab.get(word, vocab.get("<UNK>", 1)) for word in word_tokenize(title.lower())]
-        title_tensor = torch.tensor(title_encoded, dtype=torch.long).to(device)
+        # Create prompt
+        prompt = f"{rating}: {keywords}"
+        prompt_tokens = self.tokenizer.encode(prompt)
         
-        # Prepare ratings
-        features = torch.tensor(ratings, dtype=torch.float32).to(device) / 5.0
+        # Prepare input with SOS token
+        input_tokens = [self.tokenizer.token_to_id("[SOS]")] + prompt_tokens
+        input_tensor = torch.tensor([input_tokens], dtype=torch.long).to(self.device)
+
+        generated_tokens = []
+        hidden = None
         
-        # Generate with different temperatures
-        for temp in [0.5, 0.7, 1.0]:
-            review = model.generate(features, title_tensor, vocab, max_length=50, temperature=temp)
-            print(f"\nTemperature {temp}:")
-            print(review)
-            reviews.append((title, ratings, temp, review))
+        with torch.no_grad():   
+            # First pass with the prompt
+            output, hidden = self.forward(input_tensor, hidden)
+            current_token = input_tensor[:, -1].unsqueeze(1)  # Last token
+            
+            # Generate tokens one by one
+            for _ in range(max_length):
+                output, hidden = self.forward(current_token, hidden)
+                next_token_logits = output[0, -1, :] / temperature
+                
+                # Apply top-k sampling
+                if top_k > 0:
+                    top_k_logits, top_k_indices = torch.topk(next_token_logits, top_k)
+                    next_token_logits = torch.full_like(next_token_logits, float('-inf'))
+                    next_token_logits.scatter_(0, top_k_indices, top_k_logits)
+                
+                # Apply top-p sampling
+                if top_p > 0:
+                    sorted_logits, sorted_indices = torch.sort(next_token_logits, descending=True)
+                    cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
+                    
+                    # Remove tokens above threshold
+                    sorted_indices_to_remove = cumulative_probs > top_p
+                    sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+                    sorted_indices_to_remove[..., 0] = 0
+                    
+                    indices_to_remove = sorted_indices[sorted_indices_to_remove]
+                    next_token_logits[indices_to_remove] = float('-inf')
+                
+                # Sample from distribution
+                probs = torch.softmax(next_token_logits, dim=-1)
+                next_token = torch.multinomial(probs, 1).item()
+                
+                # Stop if EOS or PAD
+                if next_token in [
+                    self.tokenizer.token_to_id("[EOS]"),
+                    self.tokenizer.token_to_id("[PAD]")
+                ]:
+                    break
+                
+                generated_tokens.append(next_token)
+                current_token = torch.tensor([[next_token]], dtype=torch.long).to(self.device)
+        
+        # Decode the generated tokens
+        generated_text = self.tokenizer.decode(generated_tokens)
+        return generated_text
     
-    return reviews
-
-
-def main():
-    # Check if checkpoints exist
-    checkpoint_dir = 'checkpoints'
-    model_path = os.path.join(checkpoint_dir, 'final_model.pth')
-    vocab_path = os.path.join(checkpoint_dir, 'word_vocab.json')
+    def save(self, path: Path, epoch: int = None) -> None:
+        """
+        Save the model
+        
+        Args:
+            path: Path to save model
+            epoch: Current epoch number (optional)
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {
+                "epoch": epoch if epoch is not None else 0,
+                "model": self.state_dict(),
+                "optimizer": self.optimizer.state_dict(),
+                "vocab_size": self.vocab_size,
+                "embedding_dim": self.embedding_dim,
+                "hidden_dim": self.hidden_dim,
+                "num_layers": self.num_layers,
+                "dropout": self.dropout_rate,
+            },
+            path,
+        )
     
-    if os.path.exists(model_path) and os.path.exists(vocab_path):
-        # Generation mode
-        print("Model and vocabulary found. Generation mode activated.")
+    def load(self, path: Path) -> None:
+        """
+        Load the model
         
-        # Load vocabulary
-        vocab = load_vocab(vocab_path)
-        vocab_size = len(vocab)
+        Args:
+            path: Path to load model from
+        """
+        state = torch.load(path, map_location=self.device)
+        self.load_state_dict(state["model"])
+        self.optimizer.load_state_dict(state["optimizer"])
+        self.start_epoch = state.get("epoch", 0) + 1
         
-        # Load model
-        model = load_model(ReviewGenerator, model_path, vocab_size, 
-                          embed_size=EMBED_SIZE, hidden_size=HIDDEN_SIZE, device=device)
-        
-        # Example generation with different review titles and ratings
-        titles = [
-            "Beautiful hotel with amazing view",
-            "Decent budget hotel in good location",
-            "Disappointing stay, needs improvement"
-        ]
-        
-        ratings_list = [
-            [5.0, 4.5, 4.0, 5.0, 4.0, 4.5],  # High ratings
-            [3.5, 3.0, 4.0, 4.5, 3.0, 3.5],  # Medium ratings
-            [2.0, 2.5, 2.0, 3.5, 1.5, 2.0]   # Low ratings
-        ]
-        
-        # Generate reviews with different settings
-        generate_reviews(model, vocab, titles, ratings_list)
-        
-    else:
-        # Training mode
-        print("No model found. Training mode activated.")
-        
-        # Load dataset
-        print("Loading dataset...")
-        dataset = load_dataset("jniimi/tripadvisor-review-rating")
-        raw_data = pd.DataFrame(dataset['train'])
-        
-        # Clean and prepare data
-        df = raw_data.drop(columns=['stay_year', 'post_date', 'freq', 'lang'])
-        df = df.dropna()
-        df = df.drop_duplicates()
-        
-        # Check review lengths
-        df['review_length'] = df['review'].str.len()
-        print(f"Average review length: {df['review_length'].mean()} characters")
-        
-        # Filter super long reviews that might cause memory issues
-        # df = df[df['review_length'] < 2000]
-        
-        # Limit dataset size for faster training
-        df = df.sample(n=min(MAX_SAMPLES, len(df))).reset_index(drop=True)
-        print(f"Dataset size after limiting: {len(df)} samples")
-        
-        # Split into train/val
-        train_df, val_df = train_test_split(df, test_size=0.1, random_state=42)
-        
-        # Create word-level datasets
-        print("Creating word-level datasets...")
-        train_dataset = WordLevelReviewDataset(train_df)
-        val_dataset = WordLevelReviewDataset(val_df, vocab=train_dataset.word2idx)
-        
-        # Save vocabulary
-        os.makedirs(checkpoint_dir, exist_ok=True)
-        save_vocab(train_dataset.word2idx, vocab_path)
-        
-        # Create data loaders
-        train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn)
-        val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn)
-        
-        # Initialize word-level model
-        vocab_size = len(train_dataset.word2idx)
-        model = ReviewGenerator(vocab_size, embed_size=EMBED_SIZE, hidden_size=HIDDEN_SIZE, 
-                                         num_layers=2, dropout=0.2)
-        print(model)
-        
-        # Train model
-        print("Starting training...")
-        train_losses, val_losses = train_model(model, train_loader, val_loader, 
-                                              epochs=EPOCHS, lr=LEARNING_RATE, device=device, 
-                                              checkpoint_dir=checkpoint_dir)
-        
-        print("Training completed!")
-        
-        # Example generation
-        title = "Beautiful hotel with amazing view"
-        ratings = [5.0, 4.5, 4.0, 5.0, 4.0, 4.5]
-        
-        # Encode title
-        title_encoded = [train_dataset.word2idx.get(word, train_dataset.word2idx["<UNK>"]) 
-                       for word in train_dataset.tokenize(title)]
-        title_tensor = torch.tensor(title_encoded, dtype=torch.long).to(device)
-        
-        # Prepare ratings
-        features = torch.tensor(ratings, dtype=torch.float32).to(device) / 5.0
-        
-        # Generate review
-        print("\nGenerating review:")
-        print(f"Title: {title}")
-        print(f"Ratings: {ratings}")
-        
-        generated_review = model.generate(features, title_tensor, train_dataset.word2idx)
-        print("\nGenerated review:")
-        print(generated_review)
-
-        # Evaluate model
-        print("Evaluating model...")
-        # Diviser les données pour l'évaluation
-        train_df, test_df = train_test_split(df, test_size=0.1, random_state=42)
-        train_df, val_df = train_test_split(train_df, test_size=0.1, random_state=42)
-
-        # Après avoir entraîné votre modèle:
-        print("Évaluation du modèle...")
-        eval_metrics = evaluate_model(model, test_df, train_dataset.word2idx, device)
-        print(f"Evaluation metrics: {eval_metrics}")
-
-
-if __name__ == "__main__":
-    main()
+        # Optionally update model parameters if they're in the saved state
+        if "vocab_size" in state:
+            self.vocab_size = state["vocab_size"]
+        if "embedding_dim" in state:
+            self.embedding_dim = state["embedding_dim"]
+        if "hidden_dim" in state:
+            self.hidden_dim = state["hidden_dim"]
+        if "num_layers" in state:
+            self.num_layers = state["num_layers"]
+        if "dropout" in state:
+            self.dropout_rate = state["dropout"]

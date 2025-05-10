@@ -1,0 +1,8 @@
+model_path: "examples/PreTrained/"
+
+model:
+  type: "pre-trained"
+  params:
+    model_checkpoint: "distilbert-base-uncased"
+    epochs: 15
+    batch_size: 8
