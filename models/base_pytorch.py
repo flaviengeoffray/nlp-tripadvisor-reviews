@@ -198,28 +198,6 @@ class BaseTorchModel(nn.Module, BaseModel):
                     print(f"Early stopping at epoch {epoch+1}.")
                     break
 
-    # def predict(self, X: Union[np.ndarray, Tensor]) -> np.ndarray:
-
-    #     self.model.eval()
-    #     X = (
-    #         torch.tensor(X, dtype=torch.float32)
-    #         if not isinstance(X, Tensor)
-    #         else X.float()
-    #     ).to(self.device)
-
-    #     with torch.no_grad():
-    #         outputs = self.model(X)
-    #         preds = torch.argmax(outputs, dim=1)
-    #         return preds.cpu().numpy()
-
-    # def evaluate(
-    #     self,
-    #     X: Union[np.ndarray, Tensor],
-    #     y: Union[np.ndarray, Tensor],
-    #     y_pred: Union[np.ndarray, Tensor] = None,
-    # ) -> Dict[str, float]:
-    #     # self.model.eval()
-
     def save(self, path: Path, epoch: int) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(

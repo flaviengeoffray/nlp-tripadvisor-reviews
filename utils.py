@@ -38,7 +38,7 @@ CLASSIFICATION_REGISTRY = {
     "naive-bayes": NaiveBayesModel,
     "logistic-regression": LogisticRegressionModel,
     "feedforward": FNNModel,
-    "rnn": RNNModel,
+    "rnn-classification": RNNModel,
     "lstm": LSTMModel,
     "pre-trained": PretrainedClassifier,
 }

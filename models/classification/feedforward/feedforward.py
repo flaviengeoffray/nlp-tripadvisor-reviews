@@ -65,7 +65,10 @@ class FNNModel(BaseTorchModel, BaseClassificationModel):
 
     def predict(self, X: Union[np.ndarray, Tensor]) -> np.ndarray:
 
-        self.model.eval()
+        if hasattr(X, "toarray"):
+            X = X.toarray()
+
+        self.eval()
         X = (
             torch.tensor(X, dtype=torch.float32)
             if not isinstance(X, Tensor)
@@ -75,7 +78,8 @@ class FNNModel(BaseTorchModel, BaseClassificationModel):
         with torch.no_grad():
             outputs = self.forward(X)
             preds = torch.argmax(outputs, dim=1)
-        return preds.cpu().numpy()
+
+        return preds.cpu().numpy() + 1
 
     def _train_loop(self, train_loader: DataLoader, epoch: int) -> float:
 

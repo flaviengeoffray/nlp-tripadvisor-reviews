@@ -1,11 +1,13 @@
-model_path: "examples/Rnn/"
+model_path: "examples/Rnn_Classification/"
 
 tokenizer:
   type: "bpe"
-  checkpoint: "examples/Rnn/tokenizer.json"
+  # checkpoint: "examples/Rnn_Classification/tokenizer.json"
   params:
     vocab_size: 10000
     min_frequency: 2
+
+augmented_data: "augmented.csv"
 
 # vectorizer:
 #   type: "tf-idf"
@@ -28,8 +30,8 @@ tokenizer:
 
 
 model:
-  type: "rnn"
-  checkpoint: "examples/Rnn/best_model.pt"
+  type: "rnn-classification"
+  # checkpoint: "examples/Rnn_Classification/best_model.pt"
   params:
     input_dim: 128
     hidden_dims: 64

@@ -25,7 +25,6 @@ def prepare_data(
     print("Loading dataset...")
     raw = load_dataset(dataset_name)
     df = pd.DataFrame(raw["train"])
-    print(augmented_data)
 
     if augmented_data is not None:
         df_aug = pd.read_csv(augmented_data)
