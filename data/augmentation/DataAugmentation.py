@@ -5,6 +5,9 @@ import nlpaug.augmenter.word as naw
 import nlpaug.augmenter.sentence as nas
 from typing import List, Optional
 
+import nltk
+nltk.download('averaged_perceptron_tagger_eng')
+
 class DataAugmentation:
     """
     Class for augmenting textual data, particularly useful for balancing
