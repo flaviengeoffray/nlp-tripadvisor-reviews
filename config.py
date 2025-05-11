@@ -17,6 +17,8 @@ class Config:
     vectorizer: VectorizerConfig = field(default_factory=VectorizerConfig)
     model: BaseModelConfig = field(default_factory=BaseModelConfig)
 
+    # TODO: Data config dataclass
+
     # Data preparation
     test_size: float = 0.2
     val_size: float = 0.2
@@ -25,6 +27,8 @@ class Config:
     sample_size: Optional[int] = None
 
     # Data augmentation
+    augmented_data: Optional[str] = None
     balance: bool = False
     balance_percentage: float = 0.8
     augmentation_methods: list[str] = None
+    augmentation_workers: Optional[int] = None

@@ -41,7 +41,9 @@ class BaseTorchModel(nn.Module, BaseModel):
 
         device_str = kwargs.pop("device", "cpu")
         if device_str == "mps" and not torch.backends.mps.is_available():
-            print("Warning: MPS (Apple GPU) requested but not available. Falling back to CPU.")
+            print(
+                "Warning: MPS (Apple GPU) requested but not available. Falling back to CPU."
+            )
             device_str = "cpu"
         self.device = torch.device(device_str)
         print(f"Using device: {self.device.type}")
@@ -70,7 +72,7 @@ class BaseTorchModel(nn.Module, BaseModel):
         self.scheduler: ReduceLROnPlateau = (
             ReduceLROnPlateau(
                 self.optimizer, mode="min", factor=0.8, patience=5
-            ) # verbose=True
+            )  # verbose=True
             if scheduler
             else None
         )
@@ -155,7 +157,9 @@ class BaseTorchModel(nn.Module, BaseModel):
             all_preds: np.ndarray = np.concatenate(all_preds, axis=0)
             # all_labels: np.ndarray = np.array(all_labels, dtype=int)
 
-            if all(isinstance(label, str) for label in all_labels[:5]):  # Check if labels are strings
+            if all(
+                isinstance(label, str) for label in all_labels[:5]
+            ):  # Check if labels are strings
                 all_labels = all_labels  # Keep as list of strings
             else:
                 all_labels = np.array(all_labels, dtype=int)
@@ -164,23 +168,22 @@ class BaseTorchModel(nn.Module, BaseModel):
                 f"Epoch {epoch+1}/{self.epochs} — Train Loss: {train_loss:.4f} — Val Loss: {val_loss:.4f}"
             )
 
-            if (epoch+1) % 10 == 0:
-                metrics: Dict[str, float] = self.evaluate(
-                    X=None, y=all_labels, y_pred=all_preds
-                )
+            metrics: Dict[str, float] = self.evaluate(
+                X=None, y=all_labels, y_pred=all_preds
+            )
 
-                print(
-                    "Val Metrics — ",
-                    ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()),
-                )
+            print(
+                "Val Metrics — ",
+                ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()),
+            )
 
-                from utils import save_metrics  # FIXME: Crado
+            from utils import save_metrics  # FIXME: Crado
 
-                save_metrics(
-                    metrics=metrics,
-                    epoch=epoch,
-                    path=self.model_path / "train_metrics.json",
-                )
+            save_metrics(
+                metrics=metrics,
+                epoch=epoch,
+                path=self.model_path / "train_metrics.json",
+            )
 
             if self.scheduler:
                 self.scheduler.step(val_loss)

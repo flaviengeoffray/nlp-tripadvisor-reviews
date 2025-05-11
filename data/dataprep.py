@@ -1,11 +1,10 @@
 from datasets import load_dataset
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from torch.utils.data import DataLoader
 from typing import Optional
 
-from .datasets.TripAdvisorDataset import TripAdvisorDataset
 from .augmentation.DataAugmentation import DataAugmentation
+
 
 def prepare_data(
     dataset_name: str = "jniimi/tripadvisor-review-rating",
@@ -18,12 +17,19 @@ def prepare_data(
     sample_size: Optional[int] = None,
     balance: bool = False,
     balance_percentage: float = 0.8,
-    augmentation_methods: list[str] = ['synonym', 'random'],
+    augmentation_methods: list[str] = ["synonym", "random"],
+    augmentation_workers: Optional[int] = None,
+    augmented_data: Optional[str] = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
 
     print("Loading dataset...")
     raw = load_dataset(dataset_name)
     df = pd.DataFrame(raw["train"])
+    print(augmented_data)
+
+    if augmented_data is not None:
+        df_aug = pd.read_csv(augmented_data)
+        df = pd.concat([df, df_aug], ignore_index=True)
     print("Dataset loaded.")
 
     if balance:
@@ -32,35 +38,37 @@ def prepare_data(
         print("Class distribution before balancing:")
         print(df[label_col].value_counts())
 
-        augmenter = DataAugmentation(random_state=seed)
+        augmenter = DataAugmentation(
+            random_state=seed, num_workers=augmentation_workers
+        )
         print("Augmentation methods:", augmentation_methods)
-        
-        # Équilibrer les classes minoritaires à un pourcentage de la classe majoritaire
+
         class_counts = df[label_col].value_counts().to_dict()
         max_count = max(class_counts.values())
-        target_counts = {label: int(max_count * balance_percentage) for label in class_counts if label != 5}
-        target_counts[5] = class_counts[5]  # Garder la classe 5 telle quelle
-
+        target_counts = {
+            label: int(max_count * balance_percentage)
+            for label in class_counts
+            if label != 5
+        }
+        target_counts[5] = class_counts[5]
         df = augmenter.balance_dataset(
             df,
-            text_col='review',
+            text_col="review",
             label_col=label_col,
             target_counts=target_counts,
-            methods=augmentation_methods
+            methods=augmentation_methods,
         )
-        
+
         print("Class distribution after balancing:")
+        print(df[label_col].value_counts())
+    else:
+        print("Class distribution:")
         print(df[label_col].value_counts())
 
     if sample_size is not None:
         print("Sample size:", sample_size)
         df = df.sample(n=sample_size, random_state=seed)
 
-    if sample_size is not None:
-        print("DF SAMPLE", sample_size)
-        df = df.sample(n=sample_size, random_state=seed)
-
-    df = df.drop(columns=drop_columns, errors="ignore")
     df = df.dropna()
     df = df.drop_duplicates()
     df = df.sample(frac=1, random_state=seed).reset_index(drop=True)
@@ -86,21 +94,3 @@ def prepare_data(
         )
 
     return train_df, val_df, test_df
-
-
-# def get_dataloaders(
-#     train_df: pd.DataFrame,
-#     val_df: pd.DataFrame,
-#     test_df: pd.DataFrame,
-#     batch_size: int = 32,
-#     tokenizer=None,
-# ) -> tuple[DataLoader, DataLoader, DataLoader]:
-#     train_ds = TripAdvisorDataset(train_df, tokenizer)
-#     val_ds = TripAdvisorDataset(val_df, tokenizer)
-#     test_ds = TripAdvisorDataset(test_df, tokenizer)
-
-#     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-#     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False)
-#     test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False)
-
-#     return train_loader, val_loader, test_loader

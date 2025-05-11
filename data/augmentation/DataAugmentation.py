@@ -1,147 +1,128 @@
-from datasets import load_dataset
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import pandas as pd
 import numpy as np
 import nlpaug.augmenter.word as naw
 import nlpaug.augmenter.sentence as nas
 from typing import List, Optional
-
 import nltk
-nltk.download('averaged_perceptron_tagger_eng')
+
+nltk.download("averaged_perceptron_tagger_eng")
+
+augmenters = {}
+
+
+def _init_worker(random_state: int):
+    np.random.seed(random_state)
+    global augmenters
+    augmenters = {
+        "synonym": naw.SynonymAug(aug_src="wordnet"),
+        "contextual": naw.ContextualWordEmbsAug(
+            model_path="distilbert-base-uncased", action="substitute"
+        ),
+        "random": naw.RandomWordAug(action="swap"),
+        "sentence_shuffle": nas.RandomSentAug(),
+        "word_deletion": naw.RandomWordAug(action="delete", aug_p=0.1),
+    }
+
 
 class DataAugmentation:
-    """
-    Class for augmenting textual data, particularly useful for balancing
-    minority classes in an imbalanced dataset.
-    """
-    
-    def __init__(self, random_state: int = 42):
-        """
-        Initializes the data augmentation class.
-        
-        Args:
-            random_state: Seed for reproducibility
-        """
+    def __init__(
+        self, random_state: int = 42, num_workers: Optional[int] = None
+    ) -> None:
         self.random_state = random_state
-        np.random.seed(random_state)
-        
-        # Initialize augmenters
-        self.augmenters = {
-            'synonym': naw.SynonymAug(aug_src='wordnet'),
-            'contextual': naw.ContextualWordEmbsAug(model_path='distilbert-base-uncased', action="substitute"),
-            'random': naw.RandomWordAug(action="swap"),
-            'sentence_shuffle': nas.RandomSentAug(),
-            'word_deletion': naw.RandomWordAug(action="delete", aug_p=0.1),
-        }
-    
-    def augment_text(self, text: str, methods: List[str] = None, n: int = 1) -> List[str]:
-        """
-        Augments a text using multiple methods.
-        
-        Args:
-            text: The text to augment
-            methods: List of augmentation methods to use
-            n: Number of augmentations per method
-            
-        Returns:
-            List of augmented texts
-        """
+        self.num_workers = num_workers or os.cpu_count()
 
-        # print(f"Original text: {text}\n")
-        if methods is None:
-            methods = ['synonym', 'random']
-        
-        augmented_texts = []
-        
+    @staticmethod
+    def augment_text(text: str, methods: List[str], n: int) -> List[str]:
+        augmented = []
         for method in methods:
-            if method in self.augmenters:
-                try:
-                    augmenter = self.augmenters[method]
-                    augmented = augmenter.augment(text, n=n)
-                    # print(f"Augmented text using {method}:\n{augmented}\n")
-                    if isinstance(augmented, str):
-                        augmented = [augmented]
-                    
-                    augmented_texts.extend(augmented)
-                except Exception as e:
-                    print(f"Error during augmentation with method {method}: {e}")
-        
-        return augmented_texts
-    
-    def balance_dataset(
-        self, 
-        df: pd.DataFrame, 
-        text_col: str, 
-        label_col: str,
-        target_counts: Optional[dict] = None, 
-        methods: List[str] = None
-    ) -> pd.DataFrame:
-        """
-        Balances a DataFrame by augmenting minority classes.
-        
-        Args:
-            df: DataFrame containing the data
-            text_col: Name of the column containing the text
-            label_col: Name of the column containing the labels
-            target_counts: Dictionary specifying the target number of samples for each class
-                          (if None, all classes will be balanced to match the majority class)
-            methods: Augmentation methods to use
-        Returns:
-            Balanced DataFrame
-        """
+            augmenter = augmenters.get(method)
+            if not augmenter:
+                continue
+            try:
+                out = augmenter.augment(text, n=n)
+            except Exception:
+                continue
+            if isinstance(out, str):
+                out = [out]
+            augmented.extend([o for o in out if o])
+        return augmented
 
-        # Count occurrences of each class
+    @staticmethod
+    def _augment_worker(args):
+        row_dict, text_col, methods, n = args
+        texts = DataAugmentation.augment_text(row_dict[text_col], methods, n)
+        new_rows = []
+        for txt in texts[:n]:
+            nr = row_dict.copy()
+            nr[text_col] = txt
+            new_rows.append(nr)
+        return new_rows
+
+    def balance_dataset(
+        self,
+        df: pd.DataFrame,
+        text_col: str,
+        label_col: str,
+        target_counts: Optional[dict] = None,
+        methods: List[str] = None,
+    ) -> pd.DataFrame:
         class_counts = df[label_col].value_counts().to_dict()
         max_count = max(class_counts.values())
 
-        # If target_counts is not provided, set all classes to 80% of the max count
         if target_counts is None:
-            target_counts = {label: int(max_count * 0.8) for label in class_counts.keys()}
-        
-        balanced_df = df.copy()
-        
-        for label, count in class_counts.items():
+            target_counts = {lab: int(max_count * 0.8) for lab in class_counts}
+
+        balanced = df.copy()
+        methods = methods or list(augmenters.keys())
+
+        all_augmented = []
+        init_args = (self.random_state,)
+
+        for label, cnt in class_counts.items():
+
             target = target_counts.get(label, max_count)
-            
-            if count < target:
-                # Number of samples to add
-                samples_needed = target - count
-                
-                # Select samples of the current class
-                class_samples = df[df[label_col] == label]
-                
-                # Calculate how many augmentations per sample
-                augmentations_per_sample = int(np.ceil(samples_needed / len(class_samples)))
-                
-                new_samples = []
-                
-                # For each sample of the minority class
-                for _, row in class_samples.iterrows():
-                    # Augment the text
-                    augmented_texts = self.augment_text(
-                        row[text_col], 
-                        methods=methods, 
-                        n=augmentations_per_sample
-                    )
-                    
-                    # Add the new augmented samples
-                    for aug_text in augmented_texts[:min(augmentations_per_sample, samples_needed)]:
-                        new_row = row.copy()
-                        new_row[text_col] = aug_text
-                        new_samples.append(new_row)
-                        samples_needed -= 1
-                        
-                        if samples_needed <= 0:
-                            break
-                                            
-                # Add the new samples to the DataFrame
-                if new_samples:
-                    balanced_df = pd.concat([balanced_df, pd.DataFrame(new_samples)], ignore_index=True)
-                    self.save_augmented_data(pd.DataFrame(new_samples), f"augmented.csv")
+            if cnt >= target:
+                continue
+            needed = target - cnt
+            samples = df[df[label_col] == label]
+            aug_per = int(np.ceil(needed / len(samples)))
 
-        return balanced_df
+            task_args = [
+                (row.to_dict(), text_col, methods, aug_per)
+                for _, row in samples.iterrows()
+            ]
 
-    def save_augmented_data(self, df: pd.DataFrame, file_path: str):
-  
+            new_entries = []
+            with ProcessPoolExecutor(
+                max_workers=self.num_workers,
+                initializer=_init_worker,
+                initargs=init_args,
+            ) as executor:
+                futures = [
+                    executor.submit(self._augment_worker, arg) for arg in task_args
+                ]
+                for fut in as_completed(futures):
+                    try:
+                        new_entries.extend(fut.result())
+                    except Exception as e:
+                        print(f"Worker error for label {label}: {e}")
+
+            new_rows = new_entries[:needed]
+            if new_rows:
+                balanced = pd.concat(
+                    [balanced, pd.DataFrame(new_rows)], ignore_index=True
+                )
+                all_augmented.extend(new_rows)
+
+        if all_augmented:
+            aug_df = pd.DataFrame(all_augmented)
+            self.save_augmented_data(aug_df, "augmented.csv")
+
+        return balanced
+
+    @staticmethod
+    def save_augmented_data(df: pd.DataFrame, file_path: str) -> None:
         df.to_csv(file_path, index=False)
-        print(f"Augmented data saved to {file_path}")
-
+        print(f"Saved {len(df)} augmented samples to {file_path}")

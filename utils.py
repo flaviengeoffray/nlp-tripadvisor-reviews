@@ -82,6 +82,8 @@ def load_config(path: str) -> Config:
     balance = data.get("balance", Config.balance)
     balance_percentage = data.get("balance_percentage", Config.balance_percentage)
     augmentation_methods = data.get("augmentation_methods", Config.augmentation_methods)
+    augmentation_workers = data.get("augmentation_workers", Config.augmentation_workers)
+    augmented_data = data.get("augmented_data", Config.augmented_data)
 
     return Config(
         model_path=model_path,
@@ -91,16 +93,16 @@ def load_config(path: str) -> Config:
         tokenizer=tokenizer_cfg,
         vectorizer=vectorizer_cfg,
         model=model_cfg,
-
         test_size=test_size,
         val_size=val_size,
         seed=seed,
         stratify=stratify,
         sample_size=sample_size,
-
         balance=balance,
         balance_percentage=balance_percentage,
-        augmentation_methods=augmentation_methods
+        augmentation_methods=augmentation_methods,
+        augmentation_workers=augmentation_workers,
+        augmented_data=augmented_data,
     )
 
 
