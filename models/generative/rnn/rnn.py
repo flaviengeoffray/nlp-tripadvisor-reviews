@@ -46,7 +46,6 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
         self.dropout = nn.Dropout(self.dropout_rate)
         self.fc = nn.Linear(self.hidden_dim, self.vocab_size)
 
-        # Initialize base classes properly
         BaseTorchModel.__init__(self, model_path=model_path, **kwargs)
         BaseGenerativeModel.__init__(self, model_path)
 
@@ -95,10 +94,7 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
         y_val: Any,
         shuffle: bool = True,
     ) -> Tuple[DataLoader, DataLoader]:
-        """
-        Override the base _get_dataloaders method to handle text data properly
-        """
-        # For generative models, we'll use a custom dataset
+
         train_dataset = TripAdvisorDataset(
             texts=X_train,
             ratings=y_train,
@@ -133,7 +129,6 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
                 for key in batch_data:
                     batch_data[key].append(item[key])
             
-            # Stack tensors
             for key in ["encoder_input", "decoder_input", "encoder_mask", "decoder_mask", "label"]:
                 batch_data[key] = torch.stack(batch_data[key])
 
@@ -170,10 +165,10 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
         train_loss = 0.0
         
         for batch in tqdm(train_loader, desc=f"Epoch {epoch+1}/{self.epochs}"):
-            # Get input and target sequences
+
             input_seq = batch["decoder_input"].to(self.device)
             target_seq = batch["label"].to(self.device)
-            mask = batch["decoder_mask"].squeeze(1).to(self.device)  # Remove batch dimension from mask
+            mask = batch["decoder_mask"].squeeze(1).to(self.device)
             
             # Zero gradients
             self.optimizer.zero_grad()
@@ -200,6 +195,7 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
             
             # Backward pass and optimize
             loss.backward()
+            
             # Apply gradient clipping to prevent exploding gradients
             torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
             self.optimizer.step()
@@ -280,7 +276,7 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
         cer = torchmetrics.CharErrorRate()
         
         # Calculate BLEU score
-        # Ensure y_pred and y are lists of strings
+        # Ensure y_pred is a lists of strings
         y_pred = [self.tokenizer.decode(pred) for pred in y_pred]
 
         bleu_score = bleu(y_pred, y)
@@ -318,8 +314,7 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
         generated_tokens = []
         hidden = None
         
-        # Forcer une longueur minimale avant d'accepter un EOS
-        min_length = 30  # Au moins 30 tokens avant d'autoriser EOS
+        min_length = 30  # At least 30 tokens before EOS
         
         with torch.no_grad():   
             # First pass with the prompt
@@ -331,7 +326,7 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
                 output, hidden = self.forward(current_token, hidden)
                 next_token_logits = output[0, -1, :] / temperature
                 
-                # Bloquer EOS et PAD tokens si on n'a pas atteint la longueur minimale
+                # Block EOS and PAD tokens if the minimum length has not been reached
                 if i < min_length:
                     eos_id = self.tokenizer.token_to_id("[EOS]")
                     pad_id = self.tokenizer.token_to_id("[PAD]")
@@ -360,8 +355,8 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
                 # Sample from distribution
                 probs = torch.softmax(next_token_logits, dim=-1)
                 next_token = torch.multinomial(probs, 1).item()
-                
-                # Stop if EOS or PAD et qu'on a dépassé la longueur minimale
+
+                # Stop if EOS or PAD and minimum length is reached
                 if i >= min_length and next_token in [
                     self.tokenizer.token_to_id("[EOS]"),
                     self.tokenizer.token_to_id("[PAD]")
@@ -378,10 +373,6 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
     def save(self, path: Path, epoch: int = None) -> None:
         """
         Save the model
-        
-        Args:
-            path: Path to save model
-            epoch: Current epoch number (optional)
         """
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
@@ -401,16 +392,12 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
     def load(self, path: Path) -> None:
         """
         Load the model
-        
-        Args:
-            path: Path to load model from
         """
         state = torch.load(path, map_location=self.device)
         self.load_state_dict(state["model"])
         self.optimizer.load_state_dict(state["optimizer"])
         self.start_epoch = state.get("epoch", 0) + 1
         
-        # Optionally update model parameters if they're in the saved state
         if "vocab_size" in state:
             self.vocab_size = state["vocab_size"]
         if "embedding_dim" in state:
