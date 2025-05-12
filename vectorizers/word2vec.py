@@ -13,6 +13,7 @@ class Word2VecVectorizer(BaseVectorizer):
         self.window = kwargs.pop("window", 5)
         self.min_count = kwargs.pop("min_count", 1)
         self.workers = kwargs.pop("workers", 4)
+        self.tokenizer = kwargs.pop("tokenizer", None)
         self.model: Optional[Word2Vec] = None
 
     def fit(self, texts: Sequence[str], y: Optional[Any] = None) -> None:

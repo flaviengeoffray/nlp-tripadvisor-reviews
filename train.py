@@ -54,6 +54,7 @@ def main(config_path: str):
             tokenizer.save(str(config.model_path / "tokenizer.json"))
 
         config.model.params["tokenizer"] = tokenizer
+        config.vectorizer.params["tokenizer"] = tokenizer
 
     if config.vectorizer:
         print("Loading vectorizer...")

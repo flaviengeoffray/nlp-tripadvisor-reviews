@@ -21,6 +21,10 @@ class BaseTokenizer(ABC):
         pass
 
     @abstractmethod
+    def tokenize(self, text: str) -> List[str]:
+        pass
+
+    @abstractmethod
     def encode(self, text: str) -> List[int]:
         pass
 

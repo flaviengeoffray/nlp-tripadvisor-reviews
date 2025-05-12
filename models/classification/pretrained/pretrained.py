@@ -115,7 +115,12 @@ class PretrainedClassifier(BaseClassificationModel):
         print(f"Validation: {metrics}")
         self.save(self.model_path / "checkpoint")
 
-    def predict(self, texts: Union[str, List[str]]) -> Union[int, List[int]]:
+    def predict(
+        self, texts: Union[str, List[str], np.ndarray]
+    ) -> Union[int, List[int]]:
+
+        if hasattr(texts, "tolist"):
+            texts = texts.tolist()
 
         if isinstance(texts, str):
             texts = [texts]
