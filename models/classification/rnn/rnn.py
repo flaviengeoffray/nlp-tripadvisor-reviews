@@ -23,15 +23,16 @@ class RNNClassifier(BaseTorchModel, BaseClassificationModel):
         nn.Module.__init__(self)
 
         # Load pretrained Word2Vec
-        w2v_model: Word2VecVectorizer = kwargs.pop("vectorizer", None)
-        if w2v_model is None:
-            raise Exception("Word2vec is needed for RNN model")
-        emb_weights = torch.FloatTensor(w2v_model.model.wv.vectors)
-        freeze_emb = kwargs.pop("freeze_embeddings", False)
-        self.embedding = nn.Embedding.from_pretrained(emb_weights, freeze=freeze_emb)
+        # w2v_model: Word2VecVectorizer = kwargs.pop("vectorizer", None)
+        # if w2v_model is None:
+        #     raise Exception("Word2vec is needed for RNN model")
+        # emb_weights = torch.FloatTensor(w2v_model.model.wv.vectors)
+        # freeze_emb = kwargs.pop("freeze_embeddings", False)
+        # self.embedding = nn.Embedding.from_pretrained(emb_weights, freeze=freeze_emb)
 
         # RNN parameters
-        embed_dim = emb_weights.size(1)
+        # embed_dim = emb_weights.size(1)
+        input_dim: int = kwargs.pop("hidden_size", 100)
         hidden_size: int = kwargs.pop("hidden_size", 128)
         num_layers: int = kwargs.pop("num_layers", 1)
         bidirectional: bool = kwargs.pop("bidirectional", False)
@@ -40,7 +41,7 @@ class RNNClassifier(BaseTorchModel, BaseClassificationModel):
 
         # Define RNN
         self.rnn = nn.LSTM(
-            input_size=embed_dim,
+            input_size=input_dim,
             hidden_size=hidden_size,
             num_layers=num_layers,
             batch_first=True,
@@ -57,8 +58,8 @@ class RNNClassifier(BaseTorchModel, BaseClassificationModel):
 
     def forward(self, x: Tensor) -> Tensor:
         # x: LongTensor of shape (batch_size, seq_len)
-        emb = self.embedding(x)  # -> (batch, seq_len, embed_dim)
-        outputs, (h_n, c_n) = self.rnn(emb)
+        # emb = self.embedding(x)  # -> (batch, seq_len, embed_dim)
+        outputs, (h_n, c_n) = self.rnn(x)
         # use last layer's hidden state
         last_hidden = h_n[-1]  # -> (batch, hidden_size * num_directions)
         logits = self.fc(last_hidden)

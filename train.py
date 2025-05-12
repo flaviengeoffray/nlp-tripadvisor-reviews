@@ -73,13 +73,13 @@ def main(config_path: str):
             print(f"Saving vectorizer to {config.model_path / 'vectorizer.bz2'}...")
             vectorizer.save(config.model_path / "vectorizer.bz2")
 
-        if not config.vectorizer.is_embedding:
-            print("Transforming training and validation data with vectorizer...")
-            X_train = vectorizer.transform(X_train)
-            X_val = vectorizer.transform(X_val)
-            X_test = vectorizer.transform(X_test)
-        else:
-            config.model.params["vectorizer"] = vectorizer
+        # if not config.vectorizer.is_embedding:
+        print("Transforming training and validation data with vectorizer...")
+        X_train = vectorizer.transform(X_train)
+        X_val = vectorizer.transform(X_val)
+        X_test = vectorizer.transform(X_test)
+        # else:
+        #     config.model.params["vectorizer"] = vectorizer
 
     print("Loading model...")
     model: BaseModel = load_model(config.model, config.model_path)
