@@ -45,7 +45,7 @@ class LSTMModel(BaseTorchModel, BaseClassificationModel):
 
         self.fc = nn.Linear(hidden_dim * (2 if bidirectional else 1), output_dim)
 
-        super().__init__(model_path=model_path, kwargs=kwargs)
+        super().__init__(model_path=model_path, **kwargs)
 
     def forward(self, X: Tensor) -> Tensor:
         # LSTM layers in PyTorch expect 3D input tensors
@@ -85,6 +85,12 @@ class LSTMModel(BaseTorchModel, BaseClassificationModel):
         y_val: Any,
         shuffle: bool = True,
     ) -> Tuple[DataLoader, DataLoader]:
+
+        if hasattr(X_train, "toarray"):
+            X_train = X_train.toarray()
+
+        if hasattr(X_val, "toarray"):
+            X_val = X_val.toarray()
 
         if not hasattr(X_train, "tolist") or not hasattr(y_train, "tolist"):
             raise ValueError("X_train and y_train needs to by numpy arrays")
@@ -126,3 +132,26 @@ class LSTMModel(BaseTorchModel, BaseClassificationModel):
             self.optimizer.step()
             train_loss += loss.item()
         return train_loss
+
+    def _val_loop(
+        self, val_loader: DataLoader
+    ) -> Tuple[List[np.ndarray], List[int], float]:
+        val_loss = 0.0
+
+        all_preds: List[np.ndarray] = []
+        all_labels: List[int] = []
+
+        with torch.no_grad():
+            for B in tqdm(val_loader, desc="Processing validation"):
+
+                X = B["input_ids"].to(self.device)
+                y = B["label"].to(self.device)
+                outputs = self.forward(X)
+
+                all_preds.append(outputs.detach().cpu().numpy())
+                all_labels.extend(y.cpu().numpy().tolist())
+
+                loss = self.criterion(outputs, y)
+                val_loss += loss.item()
+
+        return all_preds, all_labels, val_loss

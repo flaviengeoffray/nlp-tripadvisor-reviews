@@ -12,11 +12,6 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from .base import BaseModel
 from data.tokenizers.base import BaseTokenizer
 
-# @dataclass
-# class BaseModelConfig:
-#     type: str = "logistic-regression"
-#     params: Dict[str, Any] = None
-
 
 class BaseTorchModel(nn.Module, BaseModel):
     """

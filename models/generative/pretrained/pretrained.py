@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any
 import torch
+from datasets import Dataset, ClassLabel
 from transformers import (
     AutoTokenizer,
     AutoModelForSeq2SeqLM,
@@ -21,9 +22,11 @@ class TripAdvisorReviewGenerator(BaseGenerativeModel):
         self.epochs: int = kwargs.pop("epochs", 3)
         self.batch_size: int = kwargs.pop("batch_size", 8)
         self.patience: int = kwargs.pop("patience", 2)
+        self.device: str = kwargs.pop("device", "cuda")
 
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_checkpoint)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(self.model_checkpoint)
+        self.model.to(self.device)
         self.model.eval()
 
     def fit(
@@ -38,24 +41,18 @@ class TripAdvisorReviewGenerator(BaseGenerativeModel):
         # split_ratio: float = 0.1,
         # random_seed: int = 42,
     ):
-        """
-        Fine-tune the seq2seq model on the TripAdvisor review dataset.
-        Uses "rating: X keywords: Y" as input and the review text as output for training.
-        """
-        # Load dataset
-        from datasets import load_dataset
 
-        dataset = load_dataset("jniimi/tripadvisor-review-rating")
-        data = dataset["train"]
+        random_seed: int = 42
+        class_label = ClassLabel(num_classes=5)
 
-        # Keep only relevant columns and prepare input/target texts
-        data = data.remove_columns(
-            [
-                col
-                for col in data.column_names
-                if col not in ["overall", "title", "text"]
-            ]
+        train_data = Dataset.from_dict(
+            {"review": X_train.tolist(), "labels": (y_train - 1).tolist()}
         )
+        eval_data = Dataset.from_dict(
+            {"review": X_val.tolist(), "labels": (y_val - 1).tolist()}
+        )
+        train_data = train_data.cast_column("labels", class_label)
+        eval_data = eval_data.cast_column("labels", class_label)
 
         # Define a function to create the input and target strings for each example
         def make_input_target(example):

@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, Sequence
 class VectorizerConfig:
     type: str = "tf-idf"
     checkpoint: Path = None
+    is_embedding: bool = False
     params: Dict[str, Any] = None
 
 

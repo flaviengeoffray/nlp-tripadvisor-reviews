@@ -10,8 +10,10 @@ class TfidfVectorizer(BaseVectorizer):
 
     def __init__(self, **kwargs: Any) -> None:
         self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", None)
-        self.vectorizer: SklearnTfidfVectorizer = SklearnTfidfVectorizer(
-            **kwargs, tokenizer=self.tokenizer.tokenize
+        self.vectorizer: SklearnTfidfVectorizer = (
+            SklearnTfidfVectorizer(**kwargs, tokenizer=self.tokenizer.tokenize)
+            if self.tokenizer is not None
+            else SklearnTfidfVectorizer(**kwargs)
         )
 
     def fit(self, texts: Sequence[str], y: Optional[Any] = None) -> None:

@@ -23,7 +23,7 @@ from models.classification.logistic_regression.logistic_regression import (
     LogisticRegressionModel,
 )
 from models.classification.feedforward.feedforward import FNNModel
-from models.classification.rnn.rnn import RNNModel
+from models.classification.rnn.rnn import RNNClassifier
 from models.classification.lstm.lstm import LSTMModel
 
 from models.generative.rnn.rnn import RNNGenModel
@@ -38,7 +38,7 @@ CLASSIFICATION_REGISTRY = {
     "naive-bayes": NaiveBayesModel,
     "logistic-regression": LogisticRegressionModel,
     "feedforward": FNNModel,
-    "rnn-classification": RNNModel,
+    "rnn-classification": RNNClassifier,
     "lstm": LSTMModel,
     "pre-trained": PretrainedClassifier,
 }

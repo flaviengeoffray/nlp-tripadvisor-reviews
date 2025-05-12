@@ -9,14 +9,15 @@ tokenizer:
 
 augmented_data: "augmented.csv"
 
-# vectorizer:
-#   type: "tf-idf"
-#   params:
-#     max_features: 1000  # This is fine
-#     stop_words: "english"
-#     norm: "l2"
-#     use_idf: true
-#     smooth_idf: true
+vectorizer:
+  type: "word2vec"
+  is_embedding: true
+  params:
+    max_features: 1000  # This is fine
+  #   stop_words: "english"
+  #   norm: "l2"
+  #   use_idf: true
+  #   smooth_idf: true
 # vectorizer:
 #   type: "word2vec"
 #   checkpoint: null  
@@ -33,13 +34,15 @@ model:
   type: "rnn-classification"
   # checkpoint: "examples/Rnn_Classification/best_model.pt"
   params:
-    input_dim: 128
-    hidden_dims: 64
+    vocab_size: 10000
+    embedding_dim: 100
+    hidden_size: 256
+    num_layers: 1
     output_dim: 5
     dropout_rate: 0.2
     lr: 0.0001
-    batch_size: 128
-    epochs: 40
+    batch_size: 32
+    epochs: 500
     # patience: 5
     scheduler: true 
     device: "cuda"

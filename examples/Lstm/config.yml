@@ -1,20 +1,22 @@
 model_path: "examples/Lstm/"
 
-# tokenizer:
-#   type: "bpe"
-#   params:
-#     vocab_size: 20000
-#     min_frequency: 2
-
-vectorizer:
-  type: "tf-idf"
+tokenizer:
+  type: "bpe"
   params:
-    max_features: 1000
-    stop_words: "english"
-    norm: "l2"
-    use_idf: true
-    smooth_idf: true
-    sublinear_tf: false
+    vocab_size: 20000
+    min_frequency: 2
+
+# vectorizer:
+#   type: "tf-idf"
+#   params:
+#     max_features: 1000
+#     stop_words: "english"
+#     norm: "l2"
+#     use_idf: true
+#     smooth_idf: true
+#     sublinear_tf: false
+
+augmented_data: "augmented.csv"
 
 model:
   type: "lstm"

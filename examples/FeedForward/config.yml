@@ -2,6 +2,7 @@ model_path: "examples/FeedForward/"
 
 # tokenizer:
 #   type: "bpe"
+#   checkpoint: "examples/FeedForward/tokenizer.json"
 #   params:
 #     vocab_size: 20000
 #     min_frequency: 2
@@ -22,7 +23,7 @@ augmented_data: "augmented.csv"
 
 vectorizer:
   type: "tf-idf"
-  checkpoint: "examples/FeedForward/vectorizer.bz2"
+  # checkpoint: "examples/FeedForward/vectorizer.bz2"
   params:
     max_features: 1000
     stop_words: "english"
@@ -33,7 +34,7 @@ vectorizer:
 
 model:
   type: "feedforward"
-  checkpoint: "examples/FeedForward/best_model.pt"
+  # checkpoint: "examples/FeedForward/best_model.pt"
   params:
     input_dim: 1000
     # hidden_dims: [128, 128, 128, 128]
