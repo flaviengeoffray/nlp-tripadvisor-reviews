@@ -11,3 +11,7 @@ torchmetrics
 gensim
 accelerate>=0.26.0
 nlpaug
+bert_score
+evaluate
+sacrebleu
+rouge_score

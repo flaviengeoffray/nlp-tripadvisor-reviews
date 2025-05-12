@@ -13,7 +13,7 @@ from data.tokenizers.base import BaseTokenizer
 stop_words = set(stopwords.words("english"))
 
 
-def extract_keywords(text: str, max_keywords: int = 2) -> str:
+def extract_keywords(text: str, max_keywords: int = 5) -> str:
     tokens = re.findall(r"\b\w+\b", text.lower())
     tokens = [t for t in tokens if t not in stop_words and len(t) > 2]
     freq = Counter(tokens)

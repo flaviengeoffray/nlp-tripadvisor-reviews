@@ -397,9 +397,8 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
         # Projection layer
         self.projection: Projection = Projection(self.d_model, self.vocab_size)
 
-        # TODO: init params with xavier_uniform
-
         super().__init__(model_path=model_path, **kwargs)
+        BaseGenerativeModel.__init__(self, model_path=model_path, **kwargs)
 
         assert self.tokenizer is not None, "Transformer model must have a tokenizer."
 
@@ -474,10 +473,12 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
         sos = self.tokenizer.token_to_id("[SOS]")
         eos = self.tokenizer.token_to_id("[EOS]")
 
+        batch_size = encoder_input.size(0)
+
         encoder_output: Tensor = self.encode(encoder_input, encoder_mask)
 
-        decoder_input: Tensor = (
-            torch.empty(1, 1).fill_(sos).type_as(encoder_input).to(self.device)
+        decoder_input: Tensor = torch.full(
+            (batch_size, 1), sos, dtype=torch.int64, device=self.device
         )
 
         while True:
@@ -492,33 +493,33 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
 
             decoder_output = self.decode(
                 encoder_output, encoder_mask, decoder_input, decoder_mask
-            )
+            )  # (batch_size, seq_len, d_model)
 
             # This is a greedy decoding since we always take the max probable token
             # next_token = torch.max(self.project(decoder_output[:, -1]), dim=-1)[1]
 
             # Topk decoding
             topk = 10
-            logits = self.project(decoder_output[:, -1])
-            topk_logits, topk_indices = torch.topk(logits, topk)
+            logits = self.project(decoder_output[:, -1, :])
+            topk_logits, topk_indices = torch.topk(logits, topk, dim=-1)
             probs = torch.softmax(topk_logits, dim=-1)
-            next_token = topk_indices[0, torch.multinomial(probs, num_samples=1)]
+            next_tokens = topk_indices[
+                torch.arange(batch_size),
+                torch.multinomial(probs, num_samples=1).squeeze(-1),
+            ]
 
             decoder_input = torch.cat(
                 [
                     decoder_input,
-                    torch.empty(1, 1)
-                    .type_as(encoder_input)
-                    .fill_(next_token.item())
-                    .to(self.device),
+                    next_tokens.unsqueeze(-1),
                 ],
                 dim=1,
             )
 
-            if next_token == eos:
+            if (next_tokens == eos).all():
                 break
 
-        return decoder_input.squeeze(0)
+        return decoder_input
 
     def generate(self, prompt: Optional[Any] = None) -> Any:
         """
@@ -618,32 +619,32 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
                 encoder_mask: Tensor = B["encoder_mask"].to(
                     self.device
                 )  # (B, 1, 1, seq_len)
+                decoder_input: Tensor = B["decoder_input"].to(self.device)
+                decoder_mask: Tensor = B["decoder_mask"].to(self.device)
 
                 label: Tensor = B["label"].to(self.device)  # (B, seq_len)
 
-                # assert (
-                #     encoder_input.size(0) == 1
-                # ), "Validation batch size must be equals to 1."
-
                 output: Tensor = self.inference(encoder_input, encoder_mask)
 
-                # loss: Tensor = self.criterion(
-                #     projection_output.view(-1, self.vocab_size), label.view(-1)
-                # )
+                for tokens in output.detach().cpu().tolist():
+                    preds.append(self.tokenizer.decode(tokens))
 
-                output_text = self.tokenizer.decode(output.detach().cpu().tolist())
+                source_texts.extend(B["source_text"])
+                expected_texts.extend(B["target_text"])
 
-                source_text = B["source_text"][0]
-                target_text = B["target_text"][0]
+                encoder_output = self.encode(encoder_input, encoder_mask)
+                decoder_output = self.decode(
+                    encoder_output, encoder_mask, decoder_input, decoder_mask
+                )  # (B, seq_len, d_model)
+                logits = self.project(decoder_output)  # (B, seq_len, vocab_size)
 
-                source_texts.append(source_text)
-                expected_texts.append(target_text)
-                preds.append(output_text)
+                loss = self.criterion(logits.view(-1, self.vocab_size), label.view(-1))
+                val_loss += loss.item()
 
-                if i % 100 == 0:
-                    print(f"SOURCE: {source_text}")
-                    print(f"TARGET: {target_text}")
-                    print(f"PREDICTED: {output_text}")
+                if i % 1000 == 0:
+                    print(f"SOURCE: {B['source_text'][0]}")
+                    print(f"TARGET: {B['target_text'][0]}")
+                    print(f"PREDICTED: {preds[-len(B)]}")
                 i += 1
 
-        return preds, expected_texts, val_loss
+        return [preds], expected_texts, val_loss
