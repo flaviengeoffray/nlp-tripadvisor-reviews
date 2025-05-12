@@ -13,10 +13,8 @@ import torchmetrics
 from torchmetrics.text.bleu import BLEUScore
 from torchmetrics.text.rouge import ROUGEScore
 
-from data.datasets.TripAdvisorDataset import TripAdvisorDataset, causal_mask
+from data.datasets.TripAdvisorDataset import TripAdvisorDataset
 
-from data.tokenizers.base import BaseTokenizer
-from data.tokenizers.bpe import BpeTokenizer
 from models.base_pytorch import BaseTorchModel
 from models.generative.base import BaseGenerativeModel
 
