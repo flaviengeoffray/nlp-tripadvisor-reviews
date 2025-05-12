@@ -251,112 +251,130 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         return all_preds, all_labels, val_loss
     
     
-    def evaluate(self, X: Union[np.ndarray, Tensor] = None, y: Union[np.ndarray, Tensor] = None, y_pred: Union[np.ndarray, Tensor] = None) -> Dict[str, float]:
-        """Evaluate the model with NLP metrics using torchmetrics"""
+    # def evaluate(self, X: Union[np.ndarray, Tensor] = None, y: Union[np.ndarray, Tensor] = None, y_pred: Union[np.ndarray, Tensor] = None) -> Dict[str, float]:
+    #     """Evaluate the model with NLP metrics using torchmetrics"""
 
-        if y_pred is None:
-            # If predictions are not provided, generate them
-            _, y_pred, _ = self._val_loop(self._get_dataloaders(X, y, X, y, shuffle=False)[1])
+    #     if y_pred is None:
+    #         # If predictions are not provided, generate them
+    #         _, y_pred, _ = self._val_loop(self._get_dataloaders(X, y, X, y, shuffle=False)[1])
 
-        # Initialize metrics
-        bleu = BLEUScore(n_gram=1, smooth=True)
-        rouge = ROUGEScore()
-        wer = torchmetrics.WordErrorRate()
-        cer = torchmetrics.CharErrorRate()
+    #     # Initialize metrics
+    #     bleu = BLEUScore(n_gram=1, smooth=True)
+    #     rouge = ROUGEScore()
+    #     wer = torchmetrics.WordErrorRate()
+    #     cer = torchmetrics.CharErrorRate()
         
-        # Calculate BLEU score
-        # Ensure y_pred is a lists of strings
-        y_pred = [self.tokenizer.decode(pred) for pred in y_pred]
+    #     # Calculate BLEU score
+    #     # Ensure y_pred is a lists of strings
+    #     y_pred = [self.tokenizer.decode(pred) for pred in y_pred]
 
-        bleu_score = bleu(y_pred, y)
+    #     bleu_score = bleu(y_pred, y)
 
-        # Calculate ROUGE scores
-        rouge_scores = rouge(y_pred, y)
+    #     # Calculate ROUGE scores
+    #     rouge_scores = rouge(y_pred, y)
 
-        # Calculate WER and CER
-        wer_score = wer(y_pred, y)
-        cer_score = cer(y_pred, y)
+    #     # Calculate WER and CER
+    #     wer_score = wer(y_pred, y)
+    #     cer_score = cer(y_pred, y)
 
-        return {
-            "BLEU": bleu_score.item(),
-            "ROUGE-1": rouge_scores["rouge1_fmeasure"].item(),
-            "ROUGE-2": rouge_scores["rouge2_fmeasure"].item(),
-            "ROUGE-L": rouge_scores["rougeL_fmeasure"].item(),
-            "WER": wer_score.item(),
-            "CER": cer_score.item(),
-        }
+    #     return {
+    #         "BLEU": bleu_score.item(),
+    #         "ROUGE-1": rouge_scores["rouge1_fmeasure"].item(),
+    #         "ROUGE-2": rouge_scores["rouge2_fmeasure"].item(),
+    #         "ROUGE-L": rouge_scores["rougeL_fmeasure"].item(),
+    #         "WER": wer_score.item(),
+    #         "CER": cer_score.item(),
+    #     }
             
 
     
-    def generate(self, rating, keywords, max_length=200, temperature=1.0, top_k=50, top_p=0.9):
-        """Generate a review based on rating and keywords"""
+    def generate(self, inputs, max_length: int = 100, temperature=1.0, top_k=50, top_p=0.9):
+        """
+        Generate review text(s) from instruction input(s).
+        `inputs` can be a single string or a list of strings, each in the format "rating: X keywords: Y".
+        Returns the generated review text(s).
+        """
         self.eval()
-        
-        # Create prompt
-        prompt = f"{rating}: {keywords}"
-        prompt_tokens = self.tokenizer.encode(prompt)
-        
-        # Prepare input with SOS token
-        input_tokens = [self.tokenizer.token_to_id("[SOS]")] + prompt_tokens
-        input_tensor = torch.tensor([input_tokens], dtype=torch.long).to(self.device)
+        if isinstance(inputs, str):
+            inputs = [inputs]
+            single_input = True
+        else:
+            single_input = False
 
-        generated_tokens = []
-        
+        # Tokenize each input prompt
+        input_token_lists = []
+        for prompt in inputs:
+            prompt_tokens = self.tokenizer.encode(prompt)
+            input_tokens = [self.tokenizer.token_to_id("[SOS]")] + prompt_tokens
+            input_token_lists.append(input_tokens)
+
+        # Pad input_token_lists to the same length
+        max_prompt_len = max(len(toks) for toks in input_token_lists)
+        pad_id = self.tokenizer.token_to_id("[PAD]")
+        input_token_lists = [
+            toks + [pad_id] * (max_prompt_len - len(toks)) for toks in input_token_lists
+        ]
+        input_tensor = torch.tensor(input_token_lists, dtype=torch.long).to(self.device)
+
+        generated_texts = []
         min_length = 30  # At least 30 tokens before EOS
-        
-        with torch.no_grad():   
-            # First pass with the prompt
-            output, _ = self.forward(input_tensor)
-            current_token = input_tensor[:, -1].unsqueeze(1)  # Last token
-            
-            # Generate tokens one by one
-            for i in range(max_length):
-                output, _ = self.forward(current_token)
-                next_token_logits = output[0, -1, :] / temperature
-                
-                # Block EOS and PAD tokens if the minimum length has not been reached
-                if i < min_length:
-                    eos_id = self.tokenizer.token_to_id("[EOS]")
-                    pad_id = self.tokenizer.token_to_id("[PAD]")
-                    next_token_logits[eos_id] = float('-inf')
-                    next_token_logits[pad_id] = float('-inf')
-                
-                # Apply top-k sampling
-                if top_k > 0:
-                    top_k_logits, top_k_indices = torch.topk(next_token_logits, top_k)
-                    next_token_logits = torch.full_like(next_token_logits, float('-inf'))
-                    next_token_logits.scatter_(0, top_k_indices, top_k_logits)
-                
-                # Apply top-p sampling
-                if top_p > 0:
-                    sorted_logits, sorted_indices = torch.sort(next_token_logits, descending=True)
-                    cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
-                    
-                    # Remove tokens above threshold
-                    sorted_indices_to_remove = cumulative_probs > top_p
-                    sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
-                    sorted_indices_to_remove[..., 0] = 0
-                    
-                    indices_to_remove = sorted_indices[sorted_indices_to_remove]
-                    next_token_logits[indices_to_remove] = float('-inf')
-                
-                # Sample from distribution
-                probs = torch.softmax(next_token_logits, dim=-1)
-                next_token = torch.multinomial(probs, 1).item()
 
-                # Stop if EOS or PAD and minimum length is reached
-                if i >= min_length and next_token in [
-                    self.tokenizer.token_to_id("[EOS]"),
-                    self.tokenizer.token_to_id("[PAD]")
-                ]:
+        with torch.no_grad():
+            batch_size = input_tensor.size(0)
+            # Start with the prompt
+            output, _ = self.forward(input_tensor)
+            # For each sequence in the batch, keep track of generated tokens
+            generated_tokens = [[] for _ in range(batch_size)]
+            # Current tokens: last token of each prompt
+            current_tokens = input_tensor[:, -1].unsqueeze(1)
+            finished = [False] * batch_size
+
+            for i in range(max_length):
+                output, _ = self.forward(current_tokens)
+                logits = output[:, -1, :] / temperature  # [batch, vocab]
+                for b in range(batch_size):
+                    if finished[b]:
+                        continue
+                    next_token_logits = logits[b]
+                    # Block EOS and PAD if min_length not reached
+                    if i < min_length:
+                        eos_id = self.tokenizer.token_to_id("[EOS]")
+                        pad_id = self.tokenizer.token_to_id("[PAD]")
+                        next_token_logits[eos_id] = float('-inf')
+                        next_token_logits[pad_id] = float('-inf')
+                    # Top-k
+                    if top_k > 0:
+                        top_k_logits, top_k_indices = torch.topk(next_token_logits, top_k)
+                        mask = torch.full_like(next_token_logits, float('-inf'))
+                        mask[top_k_indices] = top_k_logits
+                        next_token_logits = mask
+                    # Top-p
+                    if top_p > 0:
+                        sorted_logits, sorted_indices = torch.sort(next_token_logits, descending=True)
+                        cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
+                        sorted_indices_to_remove = cumulative_probs > top_p
+                        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+                        sorted_indices_to_remove[..., 0] = 0
+                        indices_to_remove = sorted_indices[sorted_indices_to_remove]
+                        next_token_logits[indices_to_remove] = float('-inf')
+                    probs = torch.softmax(next_token_logits, dim=-1)
+                    next_token = torch.multinomial(probs, 1).item()
+                    # Stop if EOS or PAD and min_length reached
+                    if i >= min_length and next_token in [
+                        self.tokenizer.token_to_id("[EOS]"),
+                        self.tokenizer.token_to_id("[PAD]")
+                    ]:
+                        finished[b] = True
+                        continue
+                    generated_tokens[b].append(next_token)
+                    current_tokens[b, 0] = next_token
+                if all(finished):
                     break
-                
-                generated_tokens.append(next_token)
-                current_token = torch.tensor([[next_token]], dtype=torch.long).to(self.device)
-        
-        # Decode the generated tokens
-        generated_text = self.tokenizer.decode(generated_tokens)
-        return generated_text
+
+        for toks in generated_tokens:
+            generated_texts.append(self.tokenizer.decode(toks))
+        # Always return a list, even for single input
+        return generated_texts
     
     def save(self, path: Path, epoch: int = None) -> None:
         """
