@@ -27,6 +27,7 @@ class PretrainedClassifier(BaseClassificationModel):
         self.epochs: int = kwargs.pop("epochs", 3)
         self.batch_size: int = kwargs.pop("batch_size", 8)
         self.patience: int = kwargs.pop("patience", 2)
+        self.device: str = kwargs.pop("device", "cuda")
         self.tokenizer: AutoTokenizer = AutoTokenizer.from_pretrained(
             self.model_checkpoint
         )
@@ -35,6 +36,7 @@ class PretrainedClassifier(BaseClassificationModel):
                 self.model_checkpoint, num_labels=5
             )
         )
+        self.model.to(self.device)
         self.model.eval()
 
     def fit(self, X_train: Any, y_train: Any, X_val: Any, y_val: Any) -> None:
