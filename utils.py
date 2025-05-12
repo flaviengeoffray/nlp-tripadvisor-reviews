@@ -7,6 +7,7 @@ from data.tokenizers.base import TokenizerConfig
 from models.generative.ngram.ngram import NgramGenerator
 from models.classification.pretrained.pretrained import PretrainedClassifier
 from models.generative.feedforward.feedforward import FNNGenerativeModel
+from models.generative.pretrained.pretrained import PretrainedGenerator
 from vectorizers.base import VectorizerConfig
 from models.base import BaseModelConfig, BaseModel
 from config import Config
@@ -48,6 +49,7 @@ GENERATIVE_REGISTRY = {
     "transformer": Transformer,
     "feedforward-generation": FNNGenerativeModel,
     "ngram": NgramGenerator,
+    "pre-trained-gen": PretrainedGenerator
 }
 
 
