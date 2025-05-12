@@ -2,23 +2,23 @@ model_path: "examples/LogisticRegression/"
 
 augmented_data: "augmented.csv"
 
-tokenizer:
-  type: "bpe"
-  params:
-    vocab_size: 20000
-    min_frequency: 2
-
-# vectorizer:
-#   type: "tf-idf"
-#   checkpoint: "examples/LogisticRegression/vectorizer.bz2"
+# tokenizer:
+#   type: "bpe"
 #   params:
-#     max_features: 10000
-#     stop_words: "english"
-#     # ngram_range: [1, 2]
-#     norm: "l2"
-#     use_idf: true
-#     smooth_idf: true
-#     sublinear_tf: false
+#     vocab_size: 20000
+#     min_frequency: 2
+
+vectorizer:
+  type: "tf-idf"
+  # checkpoint: "examples/LogisticRegression/vectorizer.bz2"
+  params:
+    max_features: 1000
+    stop_words: "english"
+    # ngram_range: [1, 2]
+    norm: "l2"
+    use_idf: true
+    smooth_idf: true
+    sublinear_tf: false
 
 model:
   type: "logistic-regression"

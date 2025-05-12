@@ -125,6 +125,7 @@ class PretrainedClassifier(BaseClassificationModel):
         if isinstance(texts, str):
             texts = [texts]
 
+        self.model.to(self.device)
         batch_size = 32
         all_preds = []
         for i in range(0, len(texts), batch_size):
@@ -145,7 +146,7 @@ class PretrainedClassifier(BaseClassificationModel):
                 preds = torch.argmax(logits, dim=1).cpu().numpy()
                 all_preds.extend(preds.tolist())
 
-            if self.device.type == "cuda":
+            if self.device == "cuda":
                 torch.cuda.empty_cache()
 
         ratings = [int(p) + 1 for p in all_preds]

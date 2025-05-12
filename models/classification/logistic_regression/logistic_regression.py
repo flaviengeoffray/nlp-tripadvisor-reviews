@@ -29,9 +29,9 @@ class LogisticRegressionModel(BaseClassificationModel):
             y_train.detach().cpu().numpy() if isinstance(y_train, Tensor) else y_train
         )
 
-        if self.tokenizer:
-            X_train = [self.tokenizer.encode(x) for x in X_train]
-            X_train = np.array(X_train)
+        # if self.tokenizer:
+        #     X_train = [self.tokenizer.encode(x) for x in X_train]
+        #     X_train = np.array(X_train)
 
         self.model.fit(X_train, y_train)
         metrics: Dict[str, float] = self.evaluate(X_train, y_train)
@@ -47,9 +47,9 @@ class LogisticRegressionModel(BaseClassificationModel):
         self.save(self.model_path / "model.bz2")
 
     def predict(self, X: Union[np.ndarray, Tensor]) -> np.ndarray:
-        if self.tokenizer:
-            X = [self.tokenizer.encode(x) for x in X]
-            X = np.array(X)
+        # if self.tokenizer:
+        #     X = [self.tokenizer.encode(x) for x in X]
+        #     X = np.array(X)
         X = X.detach().cpu().numpy() if isinstance(X, Tensor) else X
         return self.model.predict(X)
 
