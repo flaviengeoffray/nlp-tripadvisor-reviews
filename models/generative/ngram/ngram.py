@@ -1,17 +1,11 @@
+import math
 from typing import Any
 from data.tokenizers.base import BaseTokenizer
-from datasets import load_dataset
-import pandas as pd
-import os
 import json
-import random
 
 from models.generative.base import BaseGenerativeModel
-from .config import ORDER
 import nltk
 from collections import Counter, defaultdict
-from sklearn.model_selection import train_test_split
-import math
 from data.tokenizers.bpe import BpeTokenizer
 from nltk.util import ngrams
 
@@ -19,12 +13,14 @@ nltk.download('punkt', quiet=True)
 
 class NgramGenerator(BaseGenerativeModel):
     def __init__(self, model_path=None, **kwargs):
-        self.n = kwargs.pop("order", ORDER)
+        self.n = kwargs.pop("order", 5)
         self.ngram_probs = {order: defaultdict(float) for order in range(2, self.n + 1)}
         self.unigram_counts = Counter()
         self.vocab = set()
         self.V = 0
         self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", None)
+        self.model_path = model_path
+        super().__init__(model_path=model_path, **kwargs)
 
     def fit(self, X_train, y_train, X_val, y_val):
         print("[NgramGenerator] Starting training...")
@@ -67,7 +63,8 @@ class NgramGenerator(BaseGenerativeModel):
             return fallback_token
         return None
 
-    def generate(self, prompt, max_length=50):
+    def generate(self, prompt, max_length=20):
+        print(f"[NgramGenerator] Generating text for prompt: '{prompt}'")
         tokens = self.tokenizer.encode(prompt.lower())
         
         # Remove any end-of-string or special tokens at the end of the prompt
@@ -81,19 +78,22 @@ class NgramGenerator(BaseGenerativeModel):
         out = tokens[:]
         repeat_count = 0
         last_token = None
-        for _ in range(max_length):
+        for i in range(max_length):
             next_token = self.infer_next_token(out)
             if not next_token:
+                print("[NgramGenerator] No next token found, stopping generation.")
                 break
             out.append(next_token)
             if next_token == last_token:
                 repeat_count += 1
                 if repeat_count > 5:
+                    print(f"[NgramGenerator] Token '{next_token}' repeated more than 5 times, stopping generation.")
                     break
             else:
                 repeat_count = 0
             last_token = next_token
         generated_text = self.tokenizer.decode(out)
+        print(f"[NgramGenerator] Generated text: '{generated_text}'")
         return generated_text
 
     def perplexity(self, sentences):
@@ -136,11 +136,12 @@ class NgramGenerator(BaseGenerativeModel):
         ppl = self.perplexity(X)
         
         prompts = [
-            "The hotel was",
-            "Our stay at the resort",
+            "The hotel was bad because",
+            "Our stay at the resort has been",
             "The room was clean and",
-            "Breakfast was included and",
+            "Breakfast was included and delicious,",
             "I would not recommend",
+            "The service was excellent and",
         ]
 
         generations = []
@@ -159,57 +160,8 @@ class NgramGenerator(BaseGenerativeModel):
     def load(cls, path):
         with open(path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        obj = cls(model_path=path, order=ORDER, tokenizer=BpeTokenizer())
+        obj = cls(model_path=path, order=10, tokenizer=BpeTokenizer())
         obj.ngram_probs = {int(order): {eval(k): v for k, v in probs.items()} for order, probs in data['ngram_probs'].items()}
         obj.vocab = set(data['vocab'])
         obj.V = len(obj.vocab)
         return obj
-
-def main():
-    checkpoint_dir = ''
-    os.makedirs(checkpoint_dir, exist_ok=True)
-    model_path = os.path.join(checkpoint_dir, 'model.json')
-    tokenizer_path = os.path.join(checkpoint_dir, 'tokenizer.json')
-
-    dataset = load_dataset("jniimi/tripadvisor-review-rating")
-    raw_data = pd.DataFrame(dataset['train'])
-    df = raw_data.drop(columns=['stay_year', 'post_date', 'freq', 'lang'])
-    df = df.dropna().drop_duplicates()
-    df = df.sample(n=min(10000, len(df))).reset_index(drop=True)
-
-    train_df, test_df = train_test_split(df, test_size=0.1, random_state=42)
-    train_texts = list(train_df['review'])
-    test_texts = list(test_df['review'])
-
-    # Train or load tokenizer
-    if os.path.exists(tokenizer_path):
-        tokenizer = BpeTokenizer()
-        tokenizer.load(tokenizer_path)
-        print("Loaded BPE tokenizer.")
-    else:
-        tokenizer = BpeTokenizer()
-        tokenizer.fit(train_texts)
-        tokenizer.save(tokenizer_path)
-        print(f"Trained and saved BPE tokenizer to {tokenizer_path}")
-
-    if os.path.exists(model_path):
-        print("Loading existing ngram model...")
-        model = NgramGenerator.load(model_path)
-    else:
-        print("Training ngram model...")
-        model = NgramGenerator()
-        model.fit(train_texts, None, None, None)
-        model.save(model_path)
-        print(f"Model saved to {model_path}")
-
-    # Generation example
-    prompt = "The hotel was"
-    print("\nPrompt:", prompt)
-    print("Generated:", model.generate(prompt, max_length=40))
-
-    # Perplexity evaluation
-    ppl = model.perplexity(test_texts[:100])
-    print(f"\nPerplexity on test set: {ppl:.2f}")
-
-if __name__ == "__main__":
-    main()
