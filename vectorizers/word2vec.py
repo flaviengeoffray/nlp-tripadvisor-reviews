@@ -18,7 +18,10 @@ class Word2VecVectorizer(BaseVectorizer):
         self.model: Optional[Word2Vec] = None
 
     def fit(self, texts: Sequence[str], y: Optional[Any] = None) -> None:
-        sentences = [simple_preprocess(self.tokenizer.tokenize(text)) for text in texts]
+        if self.tokenizer:
+            sentences = [self.tokenizer.tokenize(text) for text in texts]
+        else:
+            sentences = [simple_preprocess(text) for text in texts]
         self.model = Word2Vec(
             sentences=sentences,
             vector_size=self.vector_size,
@@ -30,7 +33,10 @@ class Word2VecVectorizer(BaseVectorizer):
     def transform(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
         if self.model is None:
             raise ValueError("Word2Vec model has not been fitted yet.")
-        sentences = [simple_preprocess(self.tokenizer.tokenize(text)) for text in texts]
+        if self.tokenizer:
+            sentences = [self.tokenizer.tokenize(text) for text in texts]
+        else:
+            sentences = [simple_preprocess(text) for text in texts]
         return [self._average_vector(tokens) for tokens in sentences]
 
     def _average_vector(self, tokens: Sequence[str]) -> Sequence[float]:
@@ -50,7 +56,13 @@ class Word2VecVectorizer(BaseVectorizer):
         for vec in vectors:
             similar = self.model.wv.similar_by_vector(vec, topn=topn)
             words = [word for word, _ in similar]
-            results.append(words)
+            if self.tokenizer is not None:
+                ids = [self.tokenizer.token_to_id(tok) for tok in words]
+                text = self.tokenizer.decode(ids)
+                results.append(text)
+            else:
+                results.append(words)
+
         return results
 
     def save(self, path: Path) -> None:

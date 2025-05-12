@@ -27,6 +27,7 @@ class PretrainedClassifier(BaseClassificationModel):
         self.epochs: int = kwargs.pop("epochs", 3)
         self.batch_size: int = kwargs.pop("batch_size", 8)
         self.patience: int = kwargs.pop("patience", 2)
+        self.device: str = kwargs.pop("device", "cuda")
         self.tokenizer: AutoTokenizer = AutoTokenizer.from_pretrained(
             self.model_checkpoint
         )
@@ -35,6 +36,7 @@ class PretrainedClassifier(BaseClassificationModel):
                 self.model_checkpoint, num_labels=5
             )
         )
+        self.model.to(self.device)
         self.model.eval()
 
     def fit(self, X_train: Any, y_train: Any, X_val: Any, y_val: Any) -> None:
@@ -115,32 +117,41 @@ class PretrainedClassifier(BaseClassificationModel):
         print(f"Validation: {metrics}")
         self.save(self.model_path / "checkpoint")
 
-    def predict(
-        self, texts: Union[str, List[str], np.ndarray]
-    ) -> Union[int, List[int]]:
+    def predict(self, texts: Union[str, List[str], np.ndarray]) -> List[int]:
 
         if hasattr(texts, "tolist"):
             texts = texts.tolist()
 
         if isinstance(texts, str):
             texts = [texts]
-            single_input = True
-        else:
-            single_input = False
 
-        # Tokenize input texts and move to model device
-        encodings = self.tokenizer(
-            texts, padding=True, truncation=True, return_tensors="pt", max_length=512
-        )
-        encodings = {k: v.to(self.model.device) for k, v in encodings.items()}
-        self.model.eval()
-        with torch.no_grad():
-            outputs = self.model(**encodings)
-            logits = outputs.logits
-            preds = torch.argmax(logits, dim=1).cpu().numpy()
+        self.model.to(self.device)
+        batch_size = 32
+        all_preds = []
+        for i in range(0, len(texts), batch_size):
+            batch_texts = texts[i : i + batch_size]
+            enc = self.tokenizer(
+                batch_texts,
+                padding=True,
+                truncation=True,
+                return_tensors="pt",
+                max_length=512,
+            )
+            enc = {k: v.to(self.device) for k, v in enc.items()}
 
-        ratings = (preds + 1).tolist()
-        return ratings[0] if single_input else ratings
+            self.model.eval()
+            with torch.no_grad():
+                out = self.model(**enc)
+                logits = out.logits
+                preds = torch.argmax(logits, dim=1).cpu().numpy()
+                all_preds.extend(preds.tolist())
+
+            if self.device == "cuda":
+                torch.cuda.empty_cache()
+
+        ratings = [int(p) + 1 for p in all_preds]
+
+        return ratings
 
     def save(self, save_path: str) -> None:
         self.model.save_pretrained(save_path)

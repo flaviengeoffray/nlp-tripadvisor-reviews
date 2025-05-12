@@ -11,7 +11,7 @@ class TfidfVectorizer(BaseVectorizer):
     def __init__(self, **kwargs: Any) -> None:
         self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", None)
         self.vectorizer: SklearnTfidfVectorizer = SklearnTfidfVectorizer(
-            **kwargs, tokenizer=self.tokenizer.encode
+            **kwargs, tokenizer=self.tokenizer.tokenize
         )
 
     def fit(self, texts: Sequence[str], y: Optional[Any] = None) -> None:
@@ -29,4 +29,4 @@ class TfidfVectorizer(BaseVectorizer):
     def load(self, path: Path) -> None:
         self.vectorizer = joblib.load(path)
         if hasattr(self, "tokenizer") and self.tokenizer is not None:
-            self.vectorizer.tokenizer = self.tokenizer.encode
+            self.vectorizer.tokenizer = self.tokenizer.tokenize

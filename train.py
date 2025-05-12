@@ -53,10 +53,10 @@ def main(config_path: str):
             print(f"Saving tokenizer to {config.model_path / 'tokenizer.json'}...")
             tokenizer.save(str(config.model_path / "tokenizer.json"))
 
-        config.model.params["tokenizer"] = tokenizer
-
         if config.vectorizer:
             config.vectorizer.params["tokenizer"] = tokenizer
+        else:
+            config.model.params["tokenizer"] = tokenizer
 
     if config.vectorizer:
         print("Loading vectorizer...")
