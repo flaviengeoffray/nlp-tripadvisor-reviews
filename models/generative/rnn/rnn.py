@@ -305,7 +305,7 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
         all_preds = [all_preds[i] for i in idxs]
         all_labels = [all_labels[i] for i in idxs]
 
-        return all_preds, all_labels, val_loss
+        return [all_preds], all_labels, val_loss
 
     # def evaluate(self, X: Union[np.ndarray, Tensor] = None, y: Union[np.ndarray, Tensor] = None, y_pred: Union[np.ndarray, Tensor] = None) -> Dict[str, float]:
     #     """Evaluate the model with NLP metrics using torchmetrics"""

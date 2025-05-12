@@ -8,12 +8,13 @@ tokenizer:
     min_frequency: 2
 
 augmented_data: "augmented.csv"
-
+# sample_size: 100
 vectorizer:
   type: "word2vec"
   # is_embedding: true
   params:
-    max_features: 1000  # This is fine
+    vector_size: 10
+    max_len: 32
   #   stop_words: "english"
   #   norm: "l2"
   #   use_idf: true
@@ -35,7 +36,7 @@ model:
   # checkpoint: "examples/Rnn_Classification/best_model.pt"
   params:
     vocab_size: 10000
-    input_dim: 100
+    input_dim: 10
     hidden_size: 256
     num_layers: 1
     output_dim: 5
