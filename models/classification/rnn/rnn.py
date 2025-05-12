@@ -32,7 +32,7 @@ class RNNClassifier(BaseTorchModel, BaseClassificationModel):
 
         # RNN parameters
         # embed_dim = emb_weights.size(1)
-        input_dim: int = kwargs.pop("hidden_size", 100)
+        input_dim: int = kwargs.pop("input_dim", 100)
         hidden_size: int = kwargs.pop("hidden_size", 128)
         num_layers: int = kwargs.pop("num_layers", 1)
         bidirectional: bool = kwargs.pop("bidirectional", False)

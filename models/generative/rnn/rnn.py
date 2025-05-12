@@ -247,30 +247,65 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
                 val_loss += loss.item()
 
                 # Store predictions
-                all_preds.extend(preds.cpu().numpy())
+                # all_preds.extend(preds.cpu().numpy())
 
-                # Convert targets to text
-                for i in range(target_seq.size(0)):
-                    seq = target_seq[i].cpu().numpy()
-                    eos_pos = np.where(seq == self.tokenizer.token_to_id("[EOS]"))[0]
-                    if len(eos_pos) > 0:
-                        seq = seq[: eos_pos[0] + 1]
+                # # Convert targets to text
+                # for i in range(target_seq.size(0)):
+                #     seq = target_seq[i].cpu().numpy()
+                #     eos_pos = np.where(seq == self.tokenizer.token_to_id("[EOS]"))[0]
+                #     if len(eos_pos) > 0:
+                #         seq = seq[: eos_pos[0] + 1]
 
-                    # Filter out special tokens
-                    seq = [
+                #     # Filter out special tokens
+                #     seq = [
+                #         t
+                #         for t in seq
+                #         if t
+                #         not in [
+                #             self.tokenizer.token_to_id("[PAD]"),
+                #             self.tokenizer.token_to_id("[SOS]"),
+                #         ]
+                #     ]
+
+                #     text = self.tokenizer.decode(seq)
+                #     all_labels.append(text)
+
+                pred_seqs = preds.cpu().numpy()  # array (batch, seq_len)
+                tgt_seqs = target_seq.cpu().numpy()
+
+                for pred_ids, tgt_ids in zip(pred_seqs, tgt_seqs):
+                    eos = np.where(pred_ids == self.tokenizer.token_to_id("[EOS]"))[0]
+                    if len(eos):
+                        pred_ids = pred_ids[: eos[0] + 1]
+                        tgt_ids = tgt_ids[: eos[0] + 1]
+
+                    pred_tokens = [
                         t
-                        for t in seq
+                        for t in pred_ids
                         if t
-                        not in [
+                        not in (
                             self.tokenizer.token_to_id("[PAD]"),
                             self.tokenizer.token_to_id("[SOS]"),
-                        ]
+                        )
+                    ]
+                    tgt_tokens = [
+                        t
+                        for t in tgt_ids
+                        if t
+                        not in (
+                            self.tokenizer.token_to_id("[PAD]"),
+                            self.tokenizer.token_to_id("[SOS]"),
+                        )
                     ]
 
-                    text = self.tokenizer.decode(seq)
-                    all_labels.append(text)
+                    all_preds.append(self.tokenizer.decode(pred_tokens))
+                    all_labels.append(self.tokenizer.decode(tgt_tokens))
 
-        return all_preds[::100], all_labels[::100], val_loss
+        idxs = list(range(0, len(all_preds), 100))
+        all_preds = [all_preds[i] for i in idxs]
+        all_labels = [all_labels[i] for i in idxs]
+
+        return all_preds, all_labels, val_loss
 
     # def evaluate(self, X: Union[np.ndarray, Tensor] = None, y: Union[np.ndarray, Tensor] = None, y_pred: Union[np.ndarray, Tensor] = None) -> Dict[str, float]:
     #     """Evaluate the model with NLP metrics using torchmetrics"""

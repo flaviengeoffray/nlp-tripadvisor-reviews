@@ -35,7 +35,7 @@ model:
   # checkpoint: "examples/Rnn_Classification/best_model.pt"
   params:
     vocab_size: 10000
-    embedding_dim: 100
+    input_dim: 100
     hidden_size: 256
     num_layers: 1
     output_dim: 5
