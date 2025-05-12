@@ -14,6 +14,7 @@ import torch
 import evaluate
 from bert_score import BERTScorer
 
+from data.datasets.TripAdvisorDataset import extract_keywords
 from models.base import BaseModel
 
 
@@ -43,16 +44,16 @@ class BaseGenerativeModel(BaseModel, ABC):
     def evaluate(
         self,
         X: Union[np.ndarray, Tensor, List[Any]],
-        y: Union[np.ndarray, Tensor, List[str]],
-        y_pred: Optional[Union[np.ndarray, Tensor, List[str]]] = None,
+        y: Union[np.ndarray, Tensor, List[int]],
+        y_pred: Optional[Union[np.ndarray, Tensor, List[int]]] = None,
     ) -> Dict[str, float]:
 
         if isinstance(X, Tensor):
-            inputs = X.tolist()
+            X = X.tolist()
         elif isinstance(X, np.ndarray):
-            inputs = X.tolist()
-        elif isinstance(X, list):
-            inputs = X
+            X = X.tolist()
+        # elif isinstance(X, list):
+        #     X = X
         elif y_pred is None:
             raise ValueError(f"X is not supported: {type(X)}")
 
@@ -64,10 +65,15 @@ class BaseGenerativeModel(BaseModel, ABC):
             raise ValueError(f"y is not supported: {type(y)}")
 
         if y_pred is None:
+            targets = X
+
             preds: List[str] = []
-            for inp in inputs:
-                out = self.generate(inp)
-                preds.append(out)
+            for text, rating in zip(targets, y):
+                keywords = extract_keywords(text)
+                prompt = f"{rating}: {keywords}"
+                out = self.generate(prompt)
+                preds.extend(out)
+
         else:
             if isinstance(y_pred, (Tensor, np.ndarray)):
                 preds = [str(v) for v in y_pred.tolist()]

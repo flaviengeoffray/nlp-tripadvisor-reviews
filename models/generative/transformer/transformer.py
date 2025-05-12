@@ -554,10 +554,18 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
         ).unsqueeze(0)
         encoder_mask: Tensor = (encoder_input != pad).unsqueeze(1).unsqueeze(2).int()
 
+        encoder_input = encoder_input.to(self.device)
+        encoder_mask = encoder_input.to(self.device)
+
         with torch.no_grad():
             output = self.inference(encoder_input, encoder_mask)
 
-        return self.tokenizer.decode(output.detach().cpu().tolist())
+        preds = []
+
+        for tokens in output.detach().cpu().tolist():
+            preds.append(self.tokenizer.decode(tokens))
+
+        return preds
 
     def _train_loop(self, train_loader: DataLoader, epoch: int) -> float:
 
@@ -612,7 +620,7 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
 
         with torch.no_grad():
             i = 0
-            for B in val_loader:
+            for B in tqdm(val_loader, desc="Processing validation:"):
                 encoder_input: Tensor = B["encoder_input"].to(
                     self.device
                 )  # (B, seq_len)
@@ -624,14 +632,6 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
 
                 label: Tensor = B["label"].to(self.device)  # (B, seq_len)
 
-                output: Tensor = self.inference(encoder_input, encoder_mask)
-
-                for tokens in output.detach().cpu().tolist():
-                    preds.append(self.tokenizer.decode(tokens))
-
-                source_texts.extend(B["source_text"])
-                expected_texts.extend(B["target_text"])
-
                 encoder_output = self.encode(encoder_input, encoder_mask)
                 decoder_output = self.decode(
                     encoder_output, encoder_mask, decoder_input, decoder_mask
@@ -641,7 +641,15 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
                 loss = self.criterion(logits.view(-1, self.vocab_size), label.view(-1))
                 val_loss += loss.item()
 
-                if i % 1000 == 0:
+                if i % 100 == 0:
+
+                    output: Tensor = self.inference(encoder_input, encoder_mask)
+
+                    for tokens in output.detach().cpu().tolist():
+                        preds.append(self.tokenizer.decode(tokens))
+
+                    source_texts.extend(B["source_text"])
+                    expected_texts.extend(B["target_text"])
                     print(f"SOURCE: {B['source_text'][0]}")
                     print(f"TARGET: {B['target_text'][0]}")
                     print(f"PREDICTED: {preds[-len(B)]}")

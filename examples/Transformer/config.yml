@@ -2,7 +2,7 @@ model_path: "examples/Transformer/"
 
 tokenizer:
   type: "bpe"
-  # checkpoint: "examples/Transformer/tokenizer.json"
+  checkpoint: "examples/Transformer/tokenizer.json"
   params:
     vocab_size: 10000
     min_frequency: 2
@@ -16,10 +16,12 @@ tokenizer:
 #     use_idf: true
 #     smooth_idf: true
 #     sublinear_tf: false
+#
+sample_size: 1000
 
 model:
   type: "transformer"
-  # checkpoint: "examples/Transformer/last_model.pt"
+  checkpoint: "examples/Transformer/best_model.pt"
   params:
     vocab_size: 10000
     batch_size: 8
