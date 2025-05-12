@@ -5,6 +5,7 @@ from gensim.models import Word2Vec
 from gensim.utils import simple_preprocess
 
 from vectorizers.base import BaseVectorizer
+from data.tokenizers.base import BaseTokenizer
 
 
 class Word2VecVectorizer(BaseVectorizer):
@@ -13,11 +14,11 @@ class Word2VecVectorizer(BaseVectorizer):
         self.window = kwargs.pop("window", 5)
         self.min_count = kwargs.pop("min_count", 1)
         self.workers = kwargs.pop("workers", 4)
-        self.tokenizer = kwargs.pop("tokenizer", None)
+        self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", None)
         self.model: Optional[Word2Vec] = None
 
     def fit(self, texts: Sequence[str], y: Optional[Any] = None) -> None:
-        sentences = [simple_preprocess(text) for text in texts]
+        sentences = [simple_preprocess(self.tokenizer.tokenize(text)) for text in texts]
         self.model = Word2Vec(
             sentences=sentences,
             vector_size=self.vector_size,
@@ -29,7 +30,7 @@ class Word2VecVectorizer(BaseVectorizer):
     def transform(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
         if self.model is None:
             raise ValueError("Word2Vec model has not been fitted yet.")
-        sentences = [simple_preprocess(text) for text in texts]
+        sentences = [simple_preprocess(self.tokenizer.tokenize(text)) for text in texts]
         return [self._average_vector(tokens) for tokens in sentences]
 
     def _average_vector(self, tokens: Sequence[str]) -> Sequence[float]:
@@ -44,7 +45,7 @@ class Word2VecVectorizer(BaseVectorizer):
     ) -> Sequence[Sequence[str]]:
         if self.model is None:
             raise ValueError("Word2Vec model has not been fitted yet.")
-        topn = (self.config.params or {}).get("topn", 10)
+        topn = 10
         results = []
         for vec in vectors:
             similar = self.model.wv.similar_by_vector(vec, topn=topn)

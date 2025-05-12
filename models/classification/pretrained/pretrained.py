@@ -130,7 +130,7 @@ class PretrainedClassifier(BaseClassificationModel):
 
         # Tokenize input texts and move to model device
         encodings = self.tokenizer(
-            texts, padding=True, truncation=True, return_tensors="pt"
+            texts, padding=True, truncation=True, return_tensors="pt", max_length=512
         )
         encodings = {k: v.to(self.model.device) for k, v in encodings.items()}
         self.model.eval()
