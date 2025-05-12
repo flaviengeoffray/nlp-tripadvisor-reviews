@@ -50,7 +50,13 @@ class Word2VecVectorizer(BaseVectorizer):
         for vec in vectors:
             similar = self.model.wv.similar_by_vector(vec, topn=topn)
             words = [word for word, _ in similar]
-            results.append(words)
+            if self.tokenizer is not None:
+                ids = [self.tokenizer.token_to_id(tok) for tok in words]
+                text = self.tokenizer.decode(ids)
+                results.append(text)
+            else:
+                results.append(words)
+
         return results
 
     def save(self, path: Path) -> None:
