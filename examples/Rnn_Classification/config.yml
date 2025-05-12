@@ -1,11 +1,11 @@
 model_path: "examples/Rnn_Classification/"
 
-tokenizer:
-  type: "bpe"
-  # checkpoint: "examples/Rnn_Classification/tokenizer.json"
-  params:
-    vocab_size: 10000
-    min_frequency: 2
+# tokenizer:
+#   type: "bpe"
+#   # checkpoint: "examples/Rnn_Classification/tokenizer.json"
+#   params:
+#     vocab_size: 10000
+    # min_frequency: 2
 
 augmented_data: "augmented.csv"
 # sample_size: 100
