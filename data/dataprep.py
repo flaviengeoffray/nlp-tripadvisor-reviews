@@ -66,7 +66,12 @@ def prepare_data(
 
     if sample_size is not None:
         print("Sample size:", sample_size)
-        df = df.sample(n=sample_size, random_state=seed)
+        # df = df.sample(n=sample_size, random_state=seed)
+        df, _ = train_test_split(
+            df, train_size=sample_size, stratify=df[label_col], random_state=seed
+        )
+        print("Class distribution of subset:")
+        print(df[label_col].value_counts())
 
     df = df.dropna()
     df = df.drop_duplicates()

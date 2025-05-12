@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Any
 import torch
+from datasets import Dataset
 from transformers import (
     AutoTokenizer,
     AutoModelForSeq2SeqLM,
@@ -12,7 +13,7 @@ from transformers import (
 from models.generative.base import BaseGenerativeModel
 
 
-class TripAdvisorReviewGenerator(BaseGenerativeModel):
+class PretrainedGenerator(BaseGenerativeModel):
 
     def __init__(self, model_path: Path, **kwargs: Any) -> None:
         super().__init__(model_path)
@@ -21,9 +22,24 @@ class TripAdvisorReviewGenerator(BaseGenerativeModel):
         self.epochs: int = kwargs.pop("epochs", 3)
         self.batch_size: int = kwargs.pop("batch_size", 8)
         self.patience: int = kwargs.pop("patience", 2)
+        requested_device: str = kwargs.pop("device", "cuda")
+
+        # Device selection helper
+        if requested_device == "mps":
+            if not torch.backends.mps.is_available():
+                print("Warning: MPS device requested but not available. Using CPU instead.")
+                self.device = "cpu"
+            else:
+                self.device = "mps"
+                print("Warning: MPS backend has limited memory. If you encounter OOM errors, set device='cpu'.")
+        elif requested_device == "cuda":
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = "cpu"
 
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_checkpoint)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(self.model_checkpoint)
+        self.model.to(self.device)
         self.model.eval()
 
     def fit(
@@ -32,29 +48,24 @@ class TripAdvisorReviewGenerator(BaseGenerativeModel):
         y_train: Any,
         X_val: Any,
         y_val: Any,
-        # self,
-        # epochs: int = 3,
-        # batch_size: int = 8,
-        # split_ratio: float = 0.1,
-        # random_seed: int = 42,
     ):
-        """
-        Fine-tune the seq2seq model on the TripAdvisor review dataset.
-        Uses "rating: X keywords: Y" as input and the review text as output for training.
-        """
-        # Load dataset
-        from datasets import load_dataset
 
-        dataset = load_dataset("jniimi/tripadvisor-review-rating")
-        data = dataset["train"]
+        random_seed: int = 42
 
-        # Keep only relevant columns and prepare input/target texts
-        data = data.remove_columns(
-            [
-                col
-                for col in data.column_names
-                if col not in ["overall", "title", "text"]
-            ]
+        # Prepare datasets in the expected format for seq2seq: columns "overall", "title", "text"
+        train_data = Dataset.from_dict(
+            {
+                "overall": y_train.tolist(),
+                "title": [None] * len(X_train),  # or provide actual titles if available
+                "text": X_train.tolist(),
+            }
+        )
+        eval_data = Dataset.from_dict(
+            {
+                "overall": y_val.tolist(),
+                "title": [None] * len(X_val),  # or provide actual titles if available
+                "text": X_val.tolist(),
+            }
         )
 
         # Define a function to create the input and target strings for each example
@@ -65,12 +76,8 @@ class TripAdvisorReviewGenerator(BaseGenerativeModel):
             instruction = f"rating: {rating} keywords: {keywords}"
             return {"input_text": instruction, "target_text": str(example["text"])}
 
-        data = data.map(make_input_target, remove_columns=["overall", "title", "text"])
-
-        # Split into training and validation sets
-        data_split = data.train_test_split(test_size=split_ratio, seed=random_seed)
-        train_data = data_split["train"]
-        eval_data = data_split["test"]
+        train_data = train_data.map(make_input_target, remove_columns=["overall", "title", "text"])
+        eval_data = eval_data.map(make_input_target, remove_columns=["overall", "title", "text"])
 
         # Tokenize inputs and targets
         max_input_length = 128
@@ -100,13 +107,15 @@ class TripAdvisorReviewGenerator(BaseGenerativeModel):
         # Set up Trainer with seq2seq data collator
         training_args = TrainingArguments(
             output_dir="generator_output",
-            num_train_epochs=epochs,
-            per_device_train_batch_size=batch_size,
+            num_train_epochs=self.epochs,
+            per_device_train_batch_size=self.batch_size,
             evaluation_strategy="epoch",
             logging_strategy="epoch",
             save_strategy="no",
             predict_with_generate=True,  # enable generation for evaluation if needed
             seed=random_seed,
+            # Add device-specific arguments
+            dataloader_pin_memory=False if self.device == "mps" else True,
         )
         data_collator = DataCollatorForSeq2Seq(self.tokenizer, model=self.model)
         trainer = Trainer(
@@ -146,7 +155,7 @@ class TripAdvisorReviewGenerator(BaseGenerativeModel):
         encodings = self.tokenizer(
             inputs, return_tensors="pt", padding=True, truncation=True
         )
-        encodings = {k: v.to(self.model.device) for k, v in encodings.items()}
+        encodings = {k: v.to(self.device) for k, v in encodings.items()}
         self.model.eval()
         # Generate output sequences
         with torch.no_grad():
@@ -212,7 +221,8 @@ class TripAdvisorReviewGenerator(BaseGenerativeModel):
             # Tokenize batch of instructions
             enc = self.tokenizer(
                 batch_inputs, return_tensors="pt", padding=True, truncation=True
-            ).to(self.model.device)
+            )
+            enc = {k: v.to(self.device) for k, v in enc.items()}
             with torch.no_grad():
                 outs = self.model.generate(
                     input_ids=enc["input_ids"],
@@ -239,4 +249,5 @@ class TripAdvisorReviewGenerator(BaseGenerativeModel):
     def load(self, load_path: str) -> None:
         self.tokenizer = AutoTokenizer.from_pretrained(load_path)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(load_path)
+        self.model.to(self.device)
         self.model.eval()

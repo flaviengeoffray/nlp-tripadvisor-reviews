@@ -15,7 +15,7 @@ class BpeTokenizer(BaseTokenizer):
         min_frequency: int = 2,
         special_tokens: Optional[List[str]] = None,
         unk_token: str = "[UNK]",
-        **trainer_kwargs
+        **trainer_kwargs,
     ) -> None:
 
         self.tokenizer = Tokenizer(BPE(unk_token=unk_token))
@@ -32,7 +32,7 @@ class BpeTokenizer(BaseTokenizer):
             vocab_size=vocab_size,
             min_frequency=min_frequency,
             special_tokens=special_tokens,
-            **trainer_kwargs
+            **trainer_kwargs,
         )
 
     def fit(self, texts: List[str]) -> None:
@@ -47,6 +47,9 @@ class BpeTokenizer(BaseTokenizer):
             ],
         )
 
+    def tokenize(self, text: str) -> List[str]:
+        enc = self.tokenizer.encode(text)
+        return enc.tokens
 
     def encode(self, text: str) -> List[int]:
         encoding = self.tokenizer.encode(text)
@@ -56,41 +59,40 @@ class BpeTokenizer(BaseTokenizer):
     #     # Decode with spaces between tokens
     #     decoded = self.tokenizer.decode(tokens, skip_special_tokens=True)
     #     return decoded
-    
+
     def decode(self, tokens: List[int]) -> str:
         """
         Decode a list of token IDs back into text, properly handling special tokens.
         """
         # Filter out special tokens
         special_token_ids = [
-            self.token_to_id("[PAD]"), 
-            self.token_to_id("[SOS]"), 
+            self.token_to_id("[PAD]"),
+            self.token_to_id("[SOS]"),
             self.token_to_id("[EOS]"),
-            self.token_to_id("[UNK]")
+            self.token_to_id("[UNK]"),
         ]
-        
+
         # Remove special tokens before decoding
         filtered_tokens = [token for token in tokens if token not in special_token_ids]
-        
+
         # If no tokens left after filtering, return empty string
         if not filtered_tokens:
             return ""
-        
+
         # Use the tokenizer's built-in decoder
         try:
             decoded = self.tokenizer.decode(filtered_tokens)
             # Clean up any spacing issues
-            decoded = ' '.join(decoded.split())
+            decoded = " ".join(decoded.split())
             return decoded
         except Exception as e:
             print(f"Error decoding tokens: {e}")
             print(f"Tokens: {filtered_tokens}")
             return ""
 
-
     def token_to_id(self, token: str) -> Optional[int]:
         return self.tokenizer.token_to_id(token)
-    
+
     def id_to_token(self, token_id: int) -> str:
         return self.tokenizer.id_to_token(token_id)
 

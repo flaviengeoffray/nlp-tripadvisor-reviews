@@ -2,11 +2,17 @@ model_path: "examples/LogisticRegression/"
 
 augmented_data: "augmented.csv"
 
+# tokenizer:
+#   type: "bpe"
+#   params:
+#     vocab_size: 20000
+#     min_frequency: 2
+
 vectorizer:
   type: "tf-idf"
-  checkpoint: "examples/LogisticRegression/vectorizer.bz2"
+  # checkpoint: "examples/LogisticRegression/vectorizer.bz2"
   params:
-    max_features: 10000
+    max_features: 1000
     stop_words: "english"
     # ngram_range: [1, 2]
     norm: "l2"
@@ -16,7 +22,7 @@ vectorizer:
 
 model:
   type: "logistic-regression"
-  checkpoint: "examples/LogisticRegression/model.bz2"
+  # checkpoint: "examples/LogisticRegression/model.bz2"
   params:
     C: 1.0
     max_iter: 200

@@ -7,6 +7,7 @@ from data.tokenizers.base import TokenizerConfig
 from models.generative.ngram.ngram import NgramGenerator
 from models.classification.pretrained.pretrained import PretrainedClassifier
 from models.generative.feedforward.feedforward import FNNGenerativeModel
+from models.generative.pretrained.pretrained import PretrainedGenerator
 from vectorizers.base import VectorizerConfig
 from models.base import BaseModelConfig, BaseModel
 from config import Config
@@ -23,7 +24,7 @@ from models.classification.logistic_regression.logistic_regression import (
     LogisticRegressionModel,
 )
 from models.classification.feedforward.feedforward import FNNModel
-from models.classification.rnn.rnn import RNNModel
+from models.classification.rnn.rnn import RNNClassifier
 from models.classification.lstm.lstm import LSTMModel
 
 from models.generative.rnn.rnn import RNNGenModel
@@ -38,7 +39,7 @@ CLASSIFICATION_REGISTRY = {
     "naive-bayes": NaiveBayesModel,
     "logistic-regression": LogisticRegressionModel,
     "feedforward": FNNModel,
-    "rnn-classification": RNNModel,
+    "rnn-classification": RNNClassifier,
     "lstm": LSTMModel,
     "pre-trained": PretrainedClassifier,
 }
@@ -48,6 +49,7 @@ GENERATIVE_REGISTRY = {
     "transformer": Transformer,
     "feedforward-generation": FNNGenerativeModel,
     "ngram": NgramGenerator,
+    "pre-trained-gen": PretrainedGenerator
 }
 
 
