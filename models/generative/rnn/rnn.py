@@ -262,42 +262,40 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
         return all_preds, all_labels, val_loss
     
     
-    def evaluate(self, X: Union[np.ndarray, Tensor] = None, y: Union[np.ndarray, Tensor] = None, y_pred: Union[np.ndarray, Tensor] = None) -> Dict[str, float]:
-        """Evaluate the model with NLP metrics using torchmetrics"""
+    # def evaluate(self, X: Union[np.ndarray, Tensor] = None, y: Union[np.ndarray, Tensor] = None, y_pred: Union[np.ndarray, Tensor] = None) -> Dict[str, float]:
+    #     """Evaluate the model with NLP metrics using torchmetrics"""
 
-        if y_pred is None:
-            # If predictions are not provided, generate them
-            _, y_pred, _ = self._val_loop(self._get_dataloaders(X, y, X, y, shuffle=False)[1])
+    #     if y_pred is None:
+    #         # If predictions are not provided, generate them
+    #         _, y_pred, _ = self._val_loop(self._get_dataloaders(X, y, X, y, shuffle=False)[1])
 
-        # Initialize metrics
-        bleu = BLEUScore(n_gram=1, smooth=True)
-        rouge = ROUGEScore()
-        wer = torchmetrics.WordErrorRate()
-        cer = torchmetrics.CharErrorRate()
+    #     # Initialize metrics
+    #     bleu = BLEUScore(n_gram=1, smooth=True)
+    #     rouge = ROUGEScore()
+    #     wer = torchmetrics.WordErrorRate()
+    #     cer = torchmetrics.CharErrorRate()
         
-        # Calculate BLEU score
-        # Ensure y_pred is a lists of strings
-        y_pred = [self.tokenizer.decode(pred) for pred in y_pred]
+    #     # Calculate BLEU score
+    #     # Ensure y_pred is a lists of strings
+    #     y_pred = [self.tokenizer.decode(pred) for pred in y_pred]
 
-        bleu_score = bleu(y_pred, y)
+    #     bleu_score = bleu(y_pred, y)
 
-        # Calculate ROUGE scores
-        rouge_scores = rouge(y_pred, y)
+    #     # Calculate ROUGE scores
+    #     rouge_scores = rouge(y_pred, y)
 
-        # Calculate WER and CER
-        wer_score = wer(y_pred, y)
-        cer_score = cer(y_pred, y)
+    #     # Calculate WER and CER
+    #     wer_score = wer(y_pred, y)
+    #     cer_score = cer(y_pred, y)
 
-        return {
-            "BLEU": bleu_score.item(),
-            "ROUGE-1": rouge_scores["rouge1_fmeasure"].item(),
-            "ROUGE-2": rouge_scores["rouge2_fmeasure"].item(),
-            "ROUGE-L": rouge_scores["rougeL_fmeasure"].item(),
-            "WER": wer_score.item(),
-            "CER": cer_score.item(),
-        }
-            
-
+    #     return {
+    #         "BLEU": bleu_score.item(),
+    #         "ROUGE-1": rouge_scores["rouge1_fmeasure"].item(),
+    #         "ROUGE-2": rouge_scores["rouge2_fmeasure"].item(),
+    #         "ROUGE-L": rouge_scores["rougeL_fmeasure"].item(),
+    #         "WER": wer_score.item(),
+    #         "CER": cer_score.item(),
+    #     }
     
     def generate(self, rating, keywords, max_length=200, temperature=1.0, top_k=50, top_p=0.9):
         """Generate a review based on rating and keywords"""
