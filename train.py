@@ -5,6 +5,7 @@ from models.base import BaseModel
 from utils import load_config, load_tokenizer, load_vectorizer, load_model
 import json
 
+
 def main(config_path: str):
     print(f"Loading config from {config_path}...")
     config = load_config(config_path)
@@ -21,6 +22,8 @@ def main(config_path: str):
         balance=config.balance,
         balance_percentage=config.balance_percentage,
         augmentation_methods=config.augmentation_methods,
+        augmentation_workers=config.augmentation_workers,
+        augmented_data=config.augmented_data,
     )
 
     X_train, y_train = (
@@ -31,6 +34,11 @@ def main(config_path: str):
     X_val, y_val = (
         val_df[config.review_col].to_numpy(),
         val_df[config.label_col].to_numpy(),
+    )
+
+    X_test, y_test = (
+        test_df[config.review_col].to_numpy(),
+        test_df[config.label_col].to_numpy(),
     )
 
     if config.tokenizer:
@@ -52,7 +60,9 @@ def main(config_path: str):
         vectorizer = load_vectorizer(config.vectorizer)
 
         if config.vectorizer.checkpoint:
-            print(f"Loading vectorizer checkpoint from {config.vectorizer.checkpoint}...")
+            print(
+                f"Loading vectorizer checkpoint from {config.vectorizer.checkpoint}..."
+            )
             vectorizer.load(config.vectorizer.checkpoint)
         else:
             print("Fitting vectorizer on training data...")
@@ -63,6 +73,7 @@ def main(config_path: str):
         print("Transforming training and validation data with vectorizer...")
         X_train = vectorizer.transform(X_train)
         X_val = vectorizer.transform(X_val)
+        X_test = vectorizer.transform(X_test)
 
     print("Loading model...")
     model: BaseModel = load_model(config.model, config.model_path)
@@ -73,11 +84,11 @@ def main(config_path: str):
 
     print("Fitting model...")
     model.fit(X_train, y_train, X_val, y_val)
-    
-    print("Evaluating model on training data...")
+
+    print("Evaluating model on test data...")
     metrics = model.evaluate(
-        X_train,
-        y_train,
+        X_test,
+        y_test,
         None,
     )
     print("Metrics:", metrics)

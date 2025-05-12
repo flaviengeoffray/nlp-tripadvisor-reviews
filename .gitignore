@@ -9,6 +9,7 @@ __pycache__/
 *.pt
 *.json
 *.safetensor
+*.csv
 
 # C extensions
 *.so

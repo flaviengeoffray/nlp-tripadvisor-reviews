@@ -2,7 +2,7 @@ model_path: "examples/Transformer/"
 
 tokenizer:
   type: "bpe"
-  checkpoint: "examples/Transformer/tokenizer.json"
+  # checkpoint: "examples/Transformer/tokenizer.json"
   params:
     vocab_size: 10000
     min_frequency: 2
@@ -19,8 +19,7 @@ tokenizer:
 
 model:
   type: "transformer"
-  checkpoint: "examples/Transformer/last_model.pt"
-
+  # checkpoint: "examples/Transformer/last_model.pt"
   params:
     vocab_size: 10000
     batch_size: 8
@@ -33,4 +32,3 @@ model:
     lr: 0.0001
     dropout: 0.1
     device: "cuda"
-

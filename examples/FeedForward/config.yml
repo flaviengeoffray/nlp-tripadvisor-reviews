@@ -6,8 +6,23 @@ model_path: "examples/FeedForward/"
 #     vocab_size: 20000
 #     min_frequency: 2
 
+# dataset_name: "augmented.csv" #"jniimi/tripadvisor-review-rating"
+# dataset_name: "jniimi/tripadvisor-review-rating"
+# review_col: "review"
+# label_col: "overall"
+# sample_size: 50000
+# balance: true
+# balance_percentage: 0.8
+# augmentation_methods:
+#   - "synonym"
+#   - "sentence_shuffle"
+#   - "word_deletion"
+# augmentation_workers: 8
+augmented_data: "augmented.csv"
+
 vectorizer:
   type: "tf-idf"
+  checkpoint: "examples/FeedForward/vectorizer.bz2"
   params:
     max_features: 1000
     stop_words: "english"
@@ -22,11 +37,11 @@ model:
   params:
     input_dim: 1000
     # hidden_dims: [128, 128, 128, 128]
-    hidden_dims: [512, 512, 512, 512, 512]
+    hidden_dims: [512, 256, 128]
     epochs: 500
     output_dim: 5
-    # dropout_rate: 0.1
-    lr: 0.000001
+    dropout_rate: 0.2
+    lr: 0.0001
     # scheduler: true
     device: "cuda"
 

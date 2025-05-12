@@ -24,7 +24,6 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         hidden_dims: Sequence[int] = kwargs.pop("hidden_dims", [256, 256])
         vocab_size: int = kwargs.pop("vocab_size", input_dim)
         dropout_rate: float = kwargs.pop("dropout_rate", 0.3)
-        lr: float = kwargs.pop("lr", 1e-3)
         self.max_length: int = kwargs.pop("max_length", 50)
         self.temperature: float = kwargs.pop("temperature", 1.0)
 
@@ -32,15 +31,20 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         layers: List[nn.Module] = []
         dims = [input_dim] + list(hidden_dims)
         for in_dim, out_dim in zip(dims[:-1], dims[1:]):
-            layers.extend([nn.Linear(in_dim, out_dim), nn.ReLU(), nn.Dropout(dropout_rate)])
+            layers.extend(
+                [nn.Linear(in_dim, out_dim), nn.ReLU(), nn.Dropout(dropout_rate)]
+            )
         layers.append(nn.Linear(dims[-1], vocab_size))
         self.layers = nn.ModuleList(layers)
+
+        BaseGenerativeModel.__init__(self, model_path=model_path, **kwargs)
 
         # Initialize BaseTorchModel (handles optimizer, scheduler, etc.)
         super().__init__(model_path=model_path, **kwargs)
         # Auto-load TF-IDF vectorizer if saved alongside the model
         try:
             from vectorizers.tfidf import TfidfVectorizer
+
             vpath = model_path / "vectorizer.bz2"
             if vpath.exists():
                 tfidf = TfidfVectorizer()
@@ -82,7 +86,9 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         Generate a sequence of tokens conditioned on the input prompt.
         """
         if not hasattr(self, "vectorizer"):
-            raise AttributeError("Attach a TF-IDF vectorizer to the model before generating.")
+            raise AttributeError(
+                "Attach a TF-IDF vectorizer to the model before generating."
+            )
 
         feature_names = self._get_feature_names()
         if not feature_names:
@@ -96,7 +102,9 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         with torch.no_grad():
             for _ in range(self.max_length):
                 X_tfidf = self.vectorizer.transform([current_text])
-                X_tensor = torch.tensor(X_tfidf.toarray(), dtype=torch.float32).to(self.device)
+                X_tensor = torch.tensor(X_tfidf.toarray(), dtype=torch.float32).to(
+                    self.device
+                )
 
                 logits = self.forward(X_tensor)[0]
                 probs = torch.softmax(logits / self.temperature, dim=0)
@@ -120,7 +128,9 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
             total_loss += loss.item()
         return total_loss
 
-    def _val_loop(self, val_loader: DataLoader) -> Tuple[List[np.ndarray], List[int], float]:
+    def _val_loop(
+        self, val_loader: DataLoader
+    ) -> Tuple[List[np.ndarray], List[int], float]:
         total_loss = 0.0
         all_preds: List[np.ndarray] = []
         all_labels: List[int] = []
@@ -137,17 +147,9 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         return all_preds, all_labels, total_loss
 
     def evaluate(
-        self,
-        X: Any = None,
-        y: Any = None,
-        y_pred: Any = None
+        self, X: Any = None, y: Any = None, y_pred: Any = None
     ) -> Dict[str, float]:
-        """
-        Evaluate the model:
-        - If a vectorizer is attached, flatten and map numeric indices to token strings,
-          then compute CER, WER, and BLEU.
-        - Otherwise, delegate to the base class evaluation directly.
-        """
+
         # If no vectorizer, skip token mapping and use default evaluation
         if not hasattr(self, "vectorizer") or self.vectorizer is None:
             return super().evaluate(X, y, y_pred)

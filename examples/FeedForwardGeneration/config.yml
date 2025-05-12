@@ -20,7 +20,6 @@ vectorizer:
 model:
   type: "feedforward-generation"
   params:
-    # must match vectorizer.max_features
     input_dim: 1000
     hidden_dims: [256, 256]
     vocab_size: 1000
@@ -29,7 +28,3 @@ model:
     max_length: 50
     temperature: 1.0
     device: "cuda"
-
-training:
-  batch_size: 32
-  epochs: 10
