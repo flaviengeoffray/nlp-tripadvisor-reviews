@@ -247,7 +247,7 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
                 val_loss += loss.item()
 
                 # Store predictions
-                all_preds.append(preds.cpu().numpy())
+                all_preds.extend(preds.cpu().numpy())
 
                 # Convert targets to text
                 for i in range(target_seq.size(0)):
