@@ -2,7 +2,6 @@ import re
 from collections import Counter
 from typing import Dict, List
 
-import pandas as pd
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset
@@ -27,26 +26,23 @@ def causal_mask(size: int) -> Tensor:
 
 
 class TripAdvisorDataset(Dataset):
+    """For generative models."""
+
     def __init__(
         self,
-        # df: pd.DataFrame,
         texts: List[str],
         ratings: List[int],
         tokenizer: BaseTokenizer,
-        # review_col: str = "review",
-        # rating_col: str = "overall",
         max_input_len: int = 32,
         max_target_len: int = 256,
     ) -> None:
-        self.texts: List[str] = texts  # df[review_col].tolist()
-        self.ratings: List[int] = ratings  # df[rating_col].tolist()
+
+        self.texts: List[str] = texts
+        self.ratings: List[int] = ratings
         self.tokenizer: BaseTokenizer = tokenizer
         self.max_input_len: int = max_input_len
         self.max_target_len: int = max_target_len
 
-        # self.sos_id: Optional[int] = tokenizer.token_to_id("[SOS]")
-        # self.eos_id: Optional[int] = tokenizer.token_to_id("[EOS]")
-        # print(self.tokenizer.token_to_id("[SOS]"))
         self.sos: Tensor = torch.tensor(
             [self.tokenizer.token_to_id("[SOS]")], dtype=torch.int64
         )
@@ -110,7 +106,6 @@ class TripAdvisorDataset(Dataset):
         assert decoder_input.size(0) == self.max_target_len
         assert label.size(0) == self.max_target_len
 
-        # target_ids = target_ids + [self.eos_id]
         return {
             "encoder_input": encoder_input,  # (seq_len)
             "decoder_input": decoder_input,  # (seq_len)
@@ -122,20 +117,7 @@ class TripAdvisorDataset(Dataset):
             & causal_mask(
                 decoder_input.size(0)
             ),  # (1, 1, seq_len) & (1, seq_len, seq_len)
-            "label": label,  #  (seq_len),
+            "label": label,  #  (seq_len)
             "source_text": prompt,
             "target_text": text,
         }
-
-    # def __getitem__(self, idx: int):
-    #     text = self.texts[idx]
-    #     label = self.labels[idx]
-    #     label = (float(label) - 1.0) / 4.0
-    #     label = torch.tensor(label, dtype=torch.float)
-    #     if self.tokenizer:
-    #         enc = self.tokenizer(
-    #             text, truncation=True, padding="max_length", return_tensors="pt"
-    #         )
-    #         enc = {k: v.squeeze(0) for k, v in enc.items()}
-    #         return enc, torch.tensor(label, dtype=torch.long)
-    #     return text, label

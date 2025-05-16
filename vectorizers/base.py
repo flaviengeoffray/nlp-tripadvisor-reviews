@@ -13,12 +13,13 @@ class VectorizerConfig:
 
 
 class BaseVectorizer(ABC):
+
     @abstractmethod
     def fit(self, texts: Sequence[str], y: Optional[Any] = None) -> None:
         pass
 
-    def fit_transform(self, texts: Sequence[str], y: Optional[Any] = None) -> Any:
-        self.fit(texts, y)
+    def fit_transform(self, texts: Sequence[str]) -> Any:
+        self.fit(texts)
         return self.transform(texts)
 
     @abstractmethod

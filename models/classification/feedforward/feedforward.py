@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, List, Tuple, Union, Any
+from typing import List, Tuple, Union, Any
 
 import numpy as np
 import torch
@@ -12,36 +12,19 @@ from models.base_pytorch import BaseTorchModel
 from models.classification.base import BaseClassificationModel
 
 
-# class FeedForward(BaseClassificationModel):
-# from pathlib import Path
-# from typing import List, Union
-# import numpy as np
-# import torch
-# from torch import nn, Tensor
-# import torch.optim as optim
-# from torch.utils.data import DataLoader
-
-# from models.base_torch import BaseTorchModel
-# from models.base_classification import BaseClassificationModel
-
-
 class FNNModel(BaseTorchModel, BaseClassificationModel):
+
     def __init__(
         self,
         model_path: Path,
         **kwargs: Any,
-        # input_dim: int,
-        # hidden_dims: List[int],
-        # output_dim: int,
-        # scheduler: bool = True,
-    ):
+    ) -> None:
         nn.Module.__init__(self)
 
         input_dim: int = kwargs.pop("input_dim", 1)
         hidden_dims: List[int] = kwargs.pop("hidden_dims", [128])
         output_dim: int = kwargs.pop("output_dim", 5)
-        dropout_rate: float = kwargs.pop("dropout_rate", None)  # 0.3)
-        # lr: float = kwargs.pop("lr", 1e-3)
+        dropout_rate: float = kwargs.pop("dropout_rate", None)
 
         layers: List[nn.Module] = []
         dims = [input_dim] + hidden_dims

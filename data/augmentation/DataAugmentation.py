@@ -4,11 +4,12 @@ import pandas as pd
 import numpy as np
 import nlpaug.augmenter.word as naw
 import nlpaug.augmenter.sentence as nas
-from typing import List, Optional
+from typing import Any, List, Optional
 import nltk
 
 nltk.download("averaged_perceptron_tagger_eng")
 
+# Global variable for ProcessPoolExecutor usage.
 augmenters = {}
 
 
@@ -27,14 +28,17 @@ def _init_worker(random_state: int):
 
 
 class DataAugmentation:
+
     def __init__(
         self, random_state: int = 42, num_workers: Optional[int] = None
     ) -> None:
+
         self.random_state = random_state
         self.num_workers = num_workers or os.cpu_count()
 
     @staticmethod
     def augment_text(text: str, methods: List[str], n: int) -> List[str]:
+
         augmented = []
         for method in methods:
             augmenter = augmenters.get(method)
@@ -47,10 +51,12 @@ class DataAugmentation:
             if isinstance(out, str):
                 out = [out]
             augmented.extend([o for o in out if o])
+
         return augmented
 
     @staticmethod
-    def _augment_worker(args):
+    def _augment_worker(args: Any) -> List:
+
         row_dict, text_col, methods, n = args
         texts = DataAugmentation.augment_text(row_dict[text_col], methods, n)
         new_rows = []
@@ -58,6 +64,7 @@ class DataAugmentation:
             nr = row_dict.copy()
             nr[text_col] = txt
             new_rows.append(nr)
+
         return new_rows
 
     def balance_dataset(
@@ -68,6 +75,7 @@ class DataAugmentation:
         target_counts: Optional[dict] = None,
         methods: List[str] = None,
     ) -> pd.DataFrame:
+
         class_counts = df[label_col].value_counts().to_dict()
         max_count = max(class_counts.values())
 
@@ -124,5 +132,6 @@ class DataAugmentation:
 
     @staticmethod
     def save_augmented_data(df: pd.DataFrame, file_path: str) -> None:
+
         df.to_csv(file_path, index=False)
         print(f"Saved {len(df)} augmented samples to {file_path}")

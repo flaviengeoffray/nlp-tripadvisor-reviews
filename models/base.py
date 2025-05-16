@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, Union, Dict
+from typing import Any, Union, Dict
 
 import numpy as np
 from torch import Tensor
@@ -42,29 +42,3 @@ class BaseModel(ABC):
     @abstractmethod
     def load(self, path: Path) -> None:
         raise NotImplementedError
-
-
-# class BaseModel(ABC):
-#     """
-#     Abstract base class for all models (PyTorch and NumPy).
-#     Defines a unified interface: train, predict, save, load.
-#     """
-
-#     def __init__(self, config):
-#         self.config = config
-
-#     @abstractmethod
-#     def train(self, *args, **kwargs):
-#         pass
-
-#     @abstractmethod
-#     def predict(self, X):
-#         pass
-
-#     @abstractmethod
-#     def save(self, path: str = None):
-#         pass
-
-#     @abstractmethod
-#     def load(self, path: str):
-#         pass

@@ -22,14 +22,8 @@ class BaseTorchModel(nn.Module, BaseModel):
         self,
         model_path: Path,
         **kwargs: Any,
-        # device: str = "cpu",
-        # model: nn.Module = None,
-        # criterion: nn.Module = None,
-        # optimizer: torch.optim.Optimizer = None,
-        # scheduler: bool = True,
     ) -> None:
 
-        # nn.Module.__init__(self)
         BaseModel.__init__(self, model_path)
 
         lr: float = kwargs.pop("lr", 1e-4)
@@ -53,7 +47,6 @@ class BaseTorchModel(nn.Module, BaseModel):
         self.start_epoch: int = 0
         self.epochs: int = kwargs.pop("epochs", 20)
         self.patience: int = kwargs.pop("patience", 5)
-        # self.model: nn.Module = kwargs.pop("model", None)
         self.criterion: nn.Module = kwargs.pop("criterion", nn.CrossEntropyLoss()).to(
             self.device
         )
@@ -65,9 +58,7 @@ class BaseTorchModel(nn.Module, BaseModel):
         scheduler: bool = kwargs.pop("scheduler", True)
 
         self.scheduler: ReduceLROnPlateau = (
-            ReduceLROnPlateau(
-                self.optimizer, mode="min", factor=0.8, patience=5
-            )  # verbose=True
+            ReduceLROnPlateau(self.optimizer, mode="min", factor=0.8, patience=5)
             if scheduler
             else None
         )
@@ -150,7 +141,6 @@ class BaseTorchModel(nn.Module, BaseModel):
             val_loss /= len(val_loader)
 
             all_preds: np.ndarray = np.concatenate(all_preds, axis=0)
-            # all_labels: np.ndarray = np.array(all_labels, dtype=int)
 
             if all(
                 isinstance(label, str) for label in all_labels[:5]

@@ -9,10 +9,13 @@ from collections import Counter, defaultdict
 from data.tokenizers.bpe import BpeTokenizer
 from nltk.util import ngrams
 
-nltk.download('punkt', quiet=True)
+nltk.download("punkt", quiet=True)
+
 
 class NgramGenerator(BaseGenerativeModel):
-    def __init__(self, model_path=None, **kwargs):
+
+    def __init__(self, model_path=None, **kwargs) -> None:
+
         self.n = kwargs.pop("order", 5)
         self.ngram_probs = {order: defaultdict(float) for order in range(2, self.n + 1)}
         self.unigram_counts = Counter()
@@ -20,9 +23,11 @@ class NgramGenerator(BaseGenerativeModel):
         self.V = 0
         self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", None)
         self.model_path = model_path
+
         super().__init__(model_path=model_path, **kwargs)
 
-    def fit(self, X_train, y_train, X_val, y_val):
+    def fit(self, X_train: Any, y_train: Any, X_val: Any, y_val: Any) -> None:
+
         print("[NgramGenerator] Starting training...")
         tokenized = [self.tokenizer.encode(s.lower()) for s in X_train]
         print(f"[NgramGenerator] Tokenized {len(tokenized)} sentences.")
@@ -45,15 +50,21 @@ class NgramGenerator(BaseGenerativeModel):
                 context = gram[:-1]
                 context_count = context_counts[context]
                 self.ngram_probs[order][gram] = (count + 1) / (context_count + self.V)
-            print(f"[NgramGenerator] Extracted {len(ngram_counts)} unique {order}-grams.")
+            print(
+                f"[NgramGenerator] Extracted {len(ngram_counts)} unique {order}-grams."
+            )
         print("[NgramGenerator] Training complete.")
 
     def infer_next_token(self, tokens):
         # Try to infer the next token using n-grams of decreasing size
         for n in range(self.n, 1, -1):
             if len(tokens) >= n - 1:
-                context = tuple(tokens[-(n-1):])
-                candidates = [(gram[-1], prob) for gram, prob in self.ngram_probs[n].items() if gram[:-1] == context]
+                context = tuple(tokens[-(n - 1) :])
+                candidates = [
+                    (gram[-1], prob)
+                    for gram, prob in self.ngram_probs[n].items()
+                    if gram[:-1] == context
+                ]
                 if candidates:
                     next_token = max(candidates, key=lambda x: x[1])[0]
                     return next_token
@@ -66,15 +77,15 @@ class NgramGenerator(BaseGenerativeModel):
     def generate(self, prompt, max_length=20):
         print(f"[NgramGenerator] Generating text for prompt: '{prompt}'")
         tokens = self.tokenizer.encode(prompt.lower())
-        
+
         # Remove any end-of-string or special tokens at the end of the prompt
         while tokens:
             decoded = self.tokenizer.decode([tokens[-1]])
-            if decoded == '':
+            if decoded == "":
                 tokens.pop()
             else:
                 break
-            
+
         out = tokens[:]
         repeat_count = 0
         last_token = None
@@ -87,7 +98,9 @@ class NgramGenerator(BaseGenerativeModel):
             if next_token == last_token:
                 repeat_count += 1
                 if repeat_count > 5:
-                    print(f"[NgramGenerator] Token '{next_token}' repeated more than 5 times, stopping generation.")
+                    print(
+                        f"[NgramGenerator] Token '{next_token}' repeated more than 5 times, stopping generation."
+                    )
                     break
             else:
                 repeat_count = 0
@@ -109,7 +122,7 @@ class NgramGenerator(BaseGenerativeModel):
                 # Try to use the highest order n-gram available
                 for n in range(self.n, 1, -1):
                     if i - n + 1 >= 0:
-                        gram = tuple(sent[i - n + 1:i + 1])
+                        gram = tuple(sent[i - n + 1 : i + 1])
                         prob = self.ngram_probs[n].get(gram, None)
                         if prob is not None:
                             log_prob += -math.log(prob)
@@ -118,9 +131,11 @@ class NgramGenerator(BaseGenerativeModel):
                 if not found:
                     # Fallback to unigram probability
                     unigram = sent[i]
-                    prob = (self.unigram_counts.get(unigram, 0) + 1) / (sum(self.unigram_counts.values()) + self.V)
+                    prob = (self.unigram_counts.get(unigram, 0) + 1) / (
+                        sum(self.unigram_counts.values()) + self.V
+                    )
                     log_prob += -math.log(prob)
-        return math.exp(log_prob / N) 
+        return math.exp(log_prob / N)
 
     def evaluate(
         self,
@@ -134,7 +149,7 @@ class NgramGenerator(BaseGenerativeModel):
         Returns a dictionary with the perplexity score and generated samples.
         """
         ppl = self.perplexity(X)
-        
+
         prompts = [
             "The hotel was bad because",
             "Our stay at the resort has been",
@@ -152,16 +167,28 @@ class NgramGenerator(BaseGenerativeModel):
         return {"perplexity": ppl, "generated_samples": generations}
 
     def save(self, path):
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump({'n': self.n, 'ngram_probs': {order: {str(k): v for k, v in probs.items()} for order, probs in self.ngram_probs.items()},
-                       'vocab': list(self.vocab)}, f)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "n": self.n,
+                    "ngram_probs": {
+                        order: {str(k): v for k, v in probs.items()}
+                        for order, probs in self.ngram_probs.items()
+                    },
+                    "vocab": list(self.vocab),
+                },
+                f,
+            )
 
     @classmethod
     def load(cls, path):
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         obj = cls(model_path=path, order=10, tokenizer=BpeTokenizer())
-        obj.ngram_probs = {int(order): {eval(k): v for k, v in probs.items()} for order, probs in data['ngram_probs'].items()}
-        obj.vocab = set(data['vocab'])
+        obj.ngram_probs = {
+            int(order): {eval(k): v for k, v in probs.items()}
+            for order, probs in data["ngram_probs"].items()
+        }
+        obj.vocab = set(data["vocab"])
         obj.V = len(obj.vocab)
         return obj

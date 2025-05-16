@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, List, Union
 import torch
 from datasets import Dataset
 from transformers import (
@@ -24,14 +24,17 @@ class PretrainedGenerator(BaseGenerativeModel):
         self.patience: int = kwargs.pop("patience", 2)
         requested_device: str = kwargs.pop("device", "cuda")
 
-        # Device selection helper
         if requested_device == "mps":
             if not torch.backends.mps.is_available():
-                print("Warning: MPS device requested but not available. Using CPU instead.")
+                print(
+                    "Warning: MPS device requested but not available. Using CPU instead."
+                )
                 self.device = "cpu"
             else:
                 self.device = "mps"
-                print("Warning: MPS backend has limited memory. If you encounter OOM errors, set device='cpu'.")
+                print(
+                    "Warning: MPS backend has limited memory. If you encounter OOM errors, set device='cpu'."
+                )
         elif requested_device == "cuda":
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         else:
@@ -48,47 +51,45 @@ class PretrainedGenerator(BaseGenerativeModel):
         y_train: Any,
         X_val: Any,
         y_val: Any,
-    ):
+    ) -> None:
 
         random_seed: int = 42
 
-        # Prepare datasets in the expected format for seq2seq: columns "overall", "title", "text"
         train_data = Dataset.from_dict(
             {
                 "overall": y_train.tolist(),
-                "title": [None] * len(X_train),  # or provide actual titles if available
+                "title": [None] * len(X_train),
                 "text": X_train.tolist(),
             }
         )
         eval_data = Dataset.from_dict(
             {
                 "overall": y_val.tolist(),
-                "title": [None] * len(X_val),  # or provide actual titles if available
+                "title": [None] * len(X_val),
                 "text": X_val.tolist(),
             }
         )
 
-        # Define a function to create the input and target strings for each example
         def make_input_target(example):
             rating = int(example["overall"])
             keywords = example["title"] if example["title"] is not None else ""
-            # Construct the instruction: e.g., "rating: 5 keywords: great service, clean rooms"
             instruction = f"rating: {rating} keywords: {keywords}"
             return {"input_text": instruction, "target_text": str(example["text"])}
 
-        train_data = train_data.map(make_input_target, remove_columns=["overall", "title", "text"])
-        eval_data = eval_data.map(make_input_target, remove_columns=["overall", "title", "text"])
+        train_data = train_data.map(
+            make_input_target, remove_columns=["overall", "title", "text"]
+        )
+        eval_data = eval_data.map(
+            make_input_target, remove_columns=["overall", "title", "text"]
+        )
 
-        # Tokenize inputs and targets
         max_input_length = 128
         max_target_length = 256
 
         def tokenize_batch(batch):
-            # Tokenize the input instruction
             model_inputs = self.tokenizer(
                 batch["input_text"], max_length=max_input_length, truncation=True
             )
-            # Tokenize the target review text
             with self.tokenizer.as_target_tokenizer():
                 labels = self.tokenizer(
                     batch["target_text"], max_length=max_target_length, truncation=True
@@ -102,7 +103,6 @@ class PretrainedGenerator(BaseGenerativeModel):
         eval_data = eval_data.map(
             tokenize_batch, batched=True, remove_columns=["input_text", "target_text"]
         )
-        # (Note: we don't set_format to torch here; we'll use a data collator to handle dynamic padding)
 
         # Set up Trainer with seq2seq data collator
         training_args = TrainingArguments(
@@ -112,9 +112,8 @@ class PretrainedGenerator(BaseGenerativeModel):
             evaluation_strategy="epoch",
             logging_strategy="epoch",
             save_strategy="no",
-            predict_with_generate=True,  # enable generation for evaluation if needed
+            predict_with_generate=True,
             seed=random_seed,
-            # Add device-specific arguments
             dataloader_pin_memory=False if self.device == "mps" else True,
         )
         data_collator = DataCollatorForSeq2Seq(self.tokenizer, model=self.model)
@@ -125,57 +124,48 @@ class PretrainedGenerator(BaseGenerativeModel):
             eval_dataset=eval_data,
             tokenizer=self.tokenizer,
             data_collator=data_collator,
-            # Note: no compute_metrics during training to avoid slowdown (we'll use evaluate() separately)
         )
 
-        # Fine-tune the model
         self.model.train()
         trainer.train()
         self.model.eval()
 
-        # Evaluate on the validation set (compute loss only, since no compute_metrics in Trainer)
         val_metrics = trainer.evaluate()
         print(f"Validation loss: {val_metrics.get('eval_loss'):.4f}")
-        # Store trainer and eval_data for later use in generation or evaluation
         self.eval_data = eval_data
 
-    def generate(self, inputs, max_length: int = 100):
-        """
-        Generate review text from an instruction input.
-        `inputs` can be a single string or a list of strings, each in the format "rating: X keywords: Y".
-        Returns the generated review text(s).
-        """
+    def generate(
+        self, inputs: Union[str, List[str]], max_length: int = 100
+    ) -> List[str]:
+
         if isinstance(inputs, str):
             inputs = [inputs]
             single_input = True
         else:
             single_input = False
 
-        # Tokenize the input instruction(s)
         encodings = self.tokenizer(
             inputs, return_tensors="pt", padding=True, truncation=True
         )
         encodings = {k: v.to(self.device) for k, v in encodings.items()}
+
         self.model.eval()
-        # Generate output sequences
+
         with torch.no_grad():
             outputs = self.model.generate(
                 input_ids=encodings["input_ids"],
                 attention_mask=encodings.get("attention_mask"),
                 max_length=max_length,
             )
-        # Decode the generated tokens to text
+
         generated_texts = [
             self.tokenizer.decode(seq, skip_special_tokens=True) for seq in outputs
         ]
         return generated_texts[0] if single_input else generated_texts
 
     def evaluate(self, test_dataset=None):
-        """
-        Evaluate the model on a test dataset (or the held-out validation set if none provided).
-        Generates reviews for each input and computes BLEU, WER, and CER metrics against the reference texts.
-        """
-        # Lazy import of evaluation metrics
+        # TODO: Use evaluate of parent
+
         import evaluate
 
         bleu_metric = evaluate.load("sacrebleu")

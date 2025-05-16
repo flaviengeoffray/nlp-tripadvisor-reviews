@@ -8,22 +8,28 @@ import torch
 
 from utils import load_config, load_vectorizer, load_model
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate a TripAdvisor review with your feed-forward model"
     )
     parser.add_argument(
-        "--config","-c", required=True, help="Path to your YAML config"
+        "--config", "-c", required=True, help="Path to your YAML config"
     )
     parser.add_argument(
-        "--rating","-r", type=int, choices=range(1,6), required=True,
+        "--rating",
+        "-r",
+        type=int,
+        choices=range(1, 6),
+        required=True,
         help="Overall rating (1–5) to condition generation on",
     )
+    parser.add_argument("--keywords", "-k", default="", help="Comma-separated keywords")
     parser.add_argument(
-        "--keywords","-k", default="", help="Comma-separated keywords"
-    )
-    parser.add_argument(
-        "--device","-d", choices=["cpu","cuda"], default=None,
+        "--device",
+        "-d",
+        choices=["cpu", "cuda"],
+        default=None,
         help="Device to run on (defaults to CUDA if available)",
     )
     args = parser.parse_args()
@@ -54,7 +60,7 @@ def main():
 
     # 5) Patch model dims so its final linear matches this vocab size
     params = config.model.params or {}
-    params["input_dim"]  = true_vocab_size
+    params["input_dim"] = true_vocab_size
     params["vocab_size"] = true_vocab_size
     config.model.params = params
 
@@ -78,6 +84,7 @@ def main():
     print("Generated review:\n")
     print(review)
     print()
+
 
 if __name__ == "__main__":
     main()

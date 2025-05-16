@@ -9,6 +9,7 @@ from .base import BaseTokenizer
 
 
 class BpeTokenizer(BaseTokenizer):
+
     def __init__(
         self,
         vocab_size: int = 30000,
@@ -36,6 +37,7 @@ class BpeTokenizer(BaseTokenizer):
         )
 
     def fit(self, texts: List[str]) -> None:
+
         self.tokenizer.train_from_iterator(texts, self.trainer)
 
         # Add post-processing to handle special tokens properly
@@ -55,15 +57,8 @@ class BpeTokenizer(BaseTokenizer):
         encoding = self.tokenizer.encode(text)
         return encoding.ids
 
-    # def decode(self, tokens: List[int]) -> str:
-    #     # Decode with spaces between tokens
-    #     decoded = self.tokenizer.decode(tokens, skip_special_tokens=True)
-    #     return decoded
-
     def decode(self, tokens: List[int]) -> str:
-        """
-        Decode a list of token IDs back into text, properly handling special tokens.
-        """
+
         # Filter out special tokens
         special_token_ids = [
             self.token_to_id("[PAD]"),

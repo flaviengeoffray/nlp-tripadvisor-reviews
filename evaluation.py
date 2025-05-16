@@ -5,7 +5,8 @@ from models.base import BaseModel
 from utils import load_config, load_tokenizer, load_vectorizer, load_model
 
 
-def main(config_path: str):
+def main(config_path: str) -> None:
+
     print(f"Loading config from {config_path}...")
     config = load_config(config_path)
 

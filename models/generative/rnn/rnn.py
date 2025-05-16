@@ -1,17 +1,11 @@
-import math
 import numpy as np
 from pathlib import Path
-from typing import Dict, List, Any, Tuple, Optional, Union
+from typing import List, Any, Tuple
 import torch
 from torch import nn
 from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import json
-
-import torchmetrics
-from torchmetrics.text.bleu import BLEUScore
-from torchmetrics.text.rouge import ROUGEScore
 
 from data.datasets.TripAdvisorDataset import TripAdvisorDataset
 
@@ -20,15 +14,17 @@ from models.generative.base import BaseGenerativeModel
 
 
 class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
-    def __init__(self, model_path, **kwargs):
+
+    def __init__(self, model_path, **kwargs) -> None:
+
         nn.Module.__init__(self)
+
         self.vocab_size: int = kwargs.pop("vocab_size", 5000)
         self.embedding_dim: int = kwargs.pop("embedding_dim", 256)
         self.hidden_dim = kwargs.pop("hidden_dim", 512)
         self.num_layers = kwargs.pop("num_layers", 2)
         self.dropout_rate = kwargs.pop("dropout", 0.3)
 
-        # Define the model architecture
         self.embedding = nn.Embedding(self.vocab_size, self.embedding_dim)
         self.lstm = nn.LSTM(
             input_size=self.embedding_dim,
@@ -43,23 +39,11 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
         BaseTorchModel.__init__(self, model_path=model_path, **kwargs)
         BaseGenerativeModel.__init__(self, model_path)
 
-    def forward(self, x, hidden=None):
-        """
-        Forward pass through the LSTM Generator
+    def forward(self, x, hidden=None) -> Tensor:
 
-        Args:
-            x: Input tensor of token IDs [batch_size, seq_len]
-            hidden: Initial hidden state (optional)
-
-        Returns:
-            output: Probability distribution over vocabulary for next token
-            hidden: Updated hidden state
-        """
-        # x shape: [batch_size, seq_len]
         batch_size = x.size(0)
 
-        # Embed the input
-        embedded = self.embedding(x)  # [batch_size, seq_len, embedding_dim]
+        embedded = self.embedding(x)  # (batch_size, seq_len, embedding_dim)
 
         # Initialize hidden state if not provided
         if hidden is None:
@@ -71,18 +55,15 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
             )
             hidden = (h0, c0)
 
-        # Pass through LSTM
-        output, hidden = self.lstm(embedded, hidden)
-        # output shape: [batch_size, seq_len, hidden_dim]
+        output, hidden = self.lstm(
+            embedded, hidden
+        )  # (batch_size, seq_len, hidden_dim)
 
-        # Apply dropout
         output = self.dropout(output)
 
-        # Pass through fully connected layer
-        output = self.fc(output)
-        # output shape: [batch_size, seq_len, vocab_size]
+        output = self.fc(output)  # (batch_size, seq_len, vocab_size)
 
-        return output, hidden
+        return output
 
     def _get_dataloaders(
         self,
@@ -111,7 +92,6 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
 
         # Define collate function to handle variable length sequences
         def collate_fn(batch):
-            # Create a dictionary to store batch data
             batch_data = {
                 "encoder_input": [],
                 "decoder_input": [],
@@ -122,7 +102,6 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
                 "target_text": [],
             }
 
-            # Collect all items across the batch
             for item in batch:
                 for key in batch_data:
                     batch_data[key].append(item[key])
@@ -155,16 +134,7 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
         return train_loader, val_loader
 
     def _train_loop(self, train_loader: DataLoader, epoch: int) -> float:
-        """
-        Training loop for one epoch
 
-        Args:
-            train_loader: DataLoader for training data
-            epoch: Current epoch number
-
-        Returns:
-            train_loss: Average training loss for this epoch
-        """
         self.train()
         train_loss = 0.0
 
@@ -172,32 +142,27 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
 
             input_seq = batch["decoder_input"].to(self.device)
             target_seq = batch["label"].to(self.device)
-            mask = batch["decoder_mask"].squeeze(1).to(self.device)
 
-            # Zero gradients
             self.optimizer.zero_grad()
 
-            # Forward pass
             output, _ = self.forward(input_seq)
 
-            # Reshape output and target for cross entropy loss
-            # output: [batch_size, seq_len, vocab_size] -> [batch_size * seq_len, vocab_size]
-            # target: [batch_size, seq_len] -> [batch_size * seq_len]
-            output = output.reshape(-1, self.vocab_size)
-            target_seq = target_seq.reshape(-1)
+            output = output.reshape(
+                -1, self.vocab_size
+            )  # (batch_size, seq_len, vocab_size) -> (batch_size * seq_len, vocab_size)
+            target_seq = target_seq.reshape(
+                -1
+            )  # (batch_size, seq_len) -> (batch_size * seq_len)
 
             # Create a mask to ignore padding tokens in loss calculation
             # -1 for ignored positions (PAD tokens)
             pad_mask = target_seq != self.tokenizer.token_to_id("[PAD]")
 
-            # Create masked targets and outputs
             masked_target = target_seq[pad_mask]
             masked_output = output[pad_mask]
 
-            # Calculate loss
             loss = self.criterion(masked_output, masked_target)
 
-            # Backward pass and optimize
             loss.backward()
 
             # Apply gradient clipping to prevent exploding gradients
@@ -211,17 +176,7 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
     def _val_loop(
         self, val_loader: DataLoader
     ) -> Tuple[List[np.ndarray], List[str], float]:
-        """
-        Validation loop
 
-        Args:
-            val_loader: DataLoader for validation data
-
-        Returns:
-            all_preds: List of prediction arrays
-            all_labels: List of true labels
-            val_loss: Total validation loss
-        """
         self.eval()
         val_loss = 0.0
         all_preds = []
@@ -229,48 +184,20 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
 
         with torch.no_grad():
             for batch in val_loader:
-                # Get input and target sequences
                 input_seq = batch["decoder_input"].to(self.device)
                 target_seq = batch["label"].to(self.device)
 
-                # Forward pass
-                output, _ = self.forward(input_seq)
+                output = self.forward(input_seq)
 
-                # Get predictions
                 _, preds = torch.max(output, dim=2)
 
-                # Calculate loss
                 output_flat = output.reshape(-1, self.vocab_size)
                 target_flat = target_seq.reshape(-1)
                 pad_mask = target_flat != self.tokenizer.token_to_id("[PAD]")
                 loss = self.criterion(output_flat[pad_mask], target_flat[pad_mask])
                 val_loss += loss.item()
 
-                # Store predictions
-                # all_preds.extend(preds.cpu().numpy())
-
-                # # Convert targets to text
-                # for i in range(target_seq.size(0)):
-                #     seq = target_seq[i].cpu().numpy()
-                #     eos_pos = np.where(seq == self.tokenizer.token_to_id("[EOS]"))[0]
-                #     if len(eos_pos) > 0:
-                #         seq = seq[: eos_pos[0] + 1]
-
-                #     # Filter out special tokens
-                #     seq = [
-                #         t
-                #         for t in seq
-                #         if t
-                #         not in [
-                #             self.tokenizer.token_to_id("[PAD]"),
-                #             self.tokenizer.token_to_id("[SOS]"),
-                #         ]
-                #     ]
-
-                #     text = self.tokenizer.decode(seq)
-                #     all_labels.append(text)
-
-                pred_seqs = preds.cpu().numpy()  # array (batch, seq_len)
+                pred_seqs = preds.cpu().numpy()  # (batch, seq_len)
                 tgt_seqs = target_seq.cpu().numpy()
 
                 for pred_ids, tgt_ids in zip(pred_seqs, tgt_seqs):
@@ -307,52 +234,20 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
 
         return [all_preds], all_labels, val_loss
 
-    # def evaluate(self, X: Union[np.ndarray, Tensor] = None, y: Union[np.ndarray, Tensor] = None, y_pred: Union[np.ndarray, Tensor] = None) -> Dict[str, float]:
-    #     """Evaluate the model with NLP metrics using torchmetrics"""
-
-    #     if y_pred is None:
-    #         # If predictions are not provided, generate them
-    #         _, y_pred, _ = self._val_loop(self._get_dataloaders(X, y, X, y, shuffle=False)[1])
-
-    #     # Initialize metrics
-    #     bleu = BLEUScore(n_gram=1, smooth=True)
-    #     rouge = ROUGEScore()
-    #     wer = torchmetrics.WordErrorRate()
-    #     cer = torchmetrics.CharErrorRate()
-
-    #     # Calculate BLEU score
-    #     # Ensure y_pred is a lists of strings
-    #     y_pred = [self.tokenizer.decode(pred) for pred in y_pred]
-
-    #     bleu_score = bleu(y_pred, y)
-
-    #     # Calculate ROUGE scores
-    #     rouge_scores = rouge(y_pred, y)
-
-    #     # Calculate WER and CER
-    #     wer_score = wer(y_pred, y)
-    #     cer_score = cer(y_pred, y)
-
-    #     return {
-    #         "BLEU": bleu_score.item(),
-    #         "ROUGE-1": rouge_scores["rouge1_fmeasure"].item(),
-    #         "ROUGE-2": rouge_scores["rouge2_fmeasure"].item(),
-    #         "ROUGE-L": rouge_scores["rougeL_fmeasure"].item(),
-    #         "WER": wer_score.item(),
-    #         "CER": cer_score.item(),
-    #     }
-
     def generate(
-        self, rating, keywords, max_length=200, temperature=1.0, top_k=50, top_p=0.9
-    ):
-        """Generate a review based on rating and keywords"""
+        self,
+        rating: int,
+        keywords: str,
+        max_length: int = 200,
+        temperature: float = 1.0,
+        top_k: int = 50,
+        top_p: float = 0.9,
+    ) -> str:
         self.eval()
 
-        # Create prompt
         prompt = f"{rating}: {keywords}"
         prompt_tokens = self.tokenizer.encode(prompt)
 
-        # Prepare input with SOS token
         input_tokens = [self.tokenizer.token_to_id("[SOS]")] + prompt_tokens
         input_tensor = torch.tensor([input_tokens], dtype=torch.long).to(self.device)
 
@@ -362,12 +257,13 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
         min_length = 30  # At least 30 tokens before EOS
 
         with torch.no_grad():
-            # First pass with the prompt
+
             output, hidden = self.forward(input_tensor, hidden)
             current_token = input_tensor[:, -1].unsqueeze(1)  # Last token
 
             # Generate tokens one by one
             for i in range(max_length):
+
                 output, hidden = self.forward(current_token, hidden)
                 next_token_logits = output[0, -1, :] / temperature
 
@@ -395,7 +291,6 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
                         torch.softmax(sorted_logits, dim=-1), dim=-1
                     )
 
-                    # Remove tokens above threshold
                     sorted_indices_to_remove = cumulative_probs > top_p
                     sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[
                         ..., :-1
@@ -405,7 +300,6 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
                     indices_to_remove = sorted_indices[sorted_indices_to_remove]
                     next_token_logits[indices_to_remove] = float("-inf")
 
-                # Sample from distribution
                 probs = torch.softmax(next_token_logits, dim=-1)
                 next_token = torch.multinomial(probs, 1).item()
 
@@ -421,14 +315,11 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
                     self.device
                 )
 
-        # Decode the generated tokens
         generated_text = self.tokenizer.decode(generated_tokens)
         return generated_text
 
     def save(self, path: Path, epoch: int = None) -> None:
-        """
-        Save the model
-        """
+
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
@@ -445,9 +336,7 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
         )
 
     def load(self, path: Path) -> None:
-        """
-        Load the model
-        """
+
         state = torch.load(path, map_location=self.device)
         self.load_state_dict(state["model"])
         self.optimizer.load_state_dict(state["optimizer"])

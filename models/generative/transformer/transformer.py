@@ -1,5 +1,5 @@
 import math
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 import numpy as np
 import torch
 from torch import nn
@@ -30,6 +30,7 @@ class Embedding(nn.Module):
 class PositionalEncoding(nn.Module):
 
     def __init__(self, d_model: int, max_len: int, dropout: float = 0.1) -> None:
+
         super().__init__()
 
         self.d_model: int = d_model
@@ -81,12 +82,10 @@ class LayerNorm(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, d_model: int, d_ff: int, dropout: float = 0.1) -> None:
-        super().__init__()
 
-        # self.conv1 = nn.Conv1d(d_model, d_ff, kernel_size=1)
-        # self.relu = nn.ReLU()
-        # self.conv2 = nn.Conv1d(d_ff, d_model, kernel_size=1)
+    def __init__(self, d_model: int, d_ff: int, dropout: float = 0.1) -> None:
+
+        super().__init__()
 
         self.l1: nn.Module = nn.Linear(d_model, d_ff)
         self.dropout: nn.Module = nn.Dropout(dropout)
@@ -168,6 +167,7 @@ class MultiHeadAttention(nn.Module):
 class ResidualConnection(nn.Module):
 
     def __init__(self, dropout: float = 0.1) -> None:
+
         super().__init__()
 
         self.dropout: nn.Module = nn.Dropout(dropout)
@@ -186,6 +186,7 @@ class EncoderBlock(nn.Module):
         feedforward: FeedForward,
         dropout: float = 0.1,
     ) -> None:
+
         super().__init__()
 
         self.self_attention: MultiHeadAttention = self_attention
@@ -228,6 +229,7 @@ class DecoderBlock(nn.Module):
         feedforward: FeedForward,
         dropout: float = 0.1,
     ) -> None:
+
         super().__init__()
 
         self.self_attention: MultiHeadAttention = self_attention
@@ -264,6 +266,7 @@ class DecoderBlock(nn.Module):
 class Decoder(nn.Module):
 
     def __init__(self, layers: nn.ModuleList) -> None:
+
         super().__init__()
 
         self.layers: nn.ModuleList[DecoderBlock] = layers
@@ -295,56 +298,10 @@ class Projection(nn.Module):
         return torch.log_softmax(self.linear(X), dim=-1)  # (B, seq_len, vocab_sizs)
 
 
-# class TransformerBlock(nn.Module):
-
-#     def __init__(
-#         self,
-#         encoder: Encoder,
-#         decoder: Decoder,
-#         source_embedding: Embedding,
-#         target_embedding: Embedding,
-#         source_position: PositionalEncoding,
-#         target_position: PositionalEncoding,
-#         projection: Projection,
-#     ) -> None:
-#         super().__init__()
-
-#         self.encoder: Encoder = encoder
-#         self.decoder: Decoder = decoder
-#         self.source_embedding: Embedding = source_embedding
-#         self.target_embedding: Embedding = target_embedding
-#         self.source_position: PositionalEncoding = source_position
-#         self.target_position: PositionalEncoding = target_position
-#         self.projection: Projection = projection
-
-#     def encode(self, source: Tensor, source_mask: Tensor) -> Tensor:
-
-#         source = self.source_embedding(source)
-#         source = self.source_position(source)
-
-#         return self.encoder(source)
-
-#     def decode(
-#         self,
-#         encoder_output: Tensor,
-#         source_mask: Tensor,
-#         target: Tensor,
-#         target_mask: Tensor,
-#     ) -> Tensor:
-
-#         target = self.target_embedding(target)
-#         target = self.target_position(target)
-
-#         return self.decoder(target, encoder_output, source_mask, target_mask)
-
-#     def project(self, X: Tensor) -> Tensor:
-#         return self.projection(X)
-
-
 class Transformer(BaseTorchModel, BaseGenerativeModel):
 
-    def __init__(self, model_path, **kwargs):
-        # super().__init__(model_path, **kwargs)
+    def __init__(self, model_path, **kwargs) -> None:
+
         nn.Module.__init__(self)
 
         self.vocab_size: int = kwargs.pop("vocab_size", 30000)
@@ -356,7 +313,6 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
         self.max_target_len: int = kwargs.pop("max_target_len", 256)
 
         self.max_input_len: int = kwargs.pop("max_input_len", 32)
-        # self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", BpeTokenizer())
 
         # Embeddings Layers
         self.input_embedding: Embedding = Embedding(self.d_model, self.vocab_size)
@@ -521,10 +477,8 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
 
         return decoder_input
 
-    def generate(self, prompt: Optional[Any] = None) -> Any:
-        """
-        Generate a sentence from an input data.
-        """
+    def generate(self, prompt: str) -> List[str]:
+
         self.eval()
 
         sos: Tensor = torch.tensor(

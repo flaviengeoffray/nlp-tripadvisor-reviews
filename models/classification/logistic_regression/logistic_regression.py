@@ -10,7 +10,8 @@ from data.tokenizers.base import BaseTokenizer
 
 class LogisticRegressionModel(BaseClassificationModel):
 
-    def __init__(self, model_path: Path, **kwargs: Any):
+    def __init__(self, model_path: Path, **kwargs: Any) -> None:
+
         super().__init__(model_path)
         self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", None)
         self.model: LogisticRegression = LogisticRegression(**kwargs)
@@ -22,6 +23,7 @@ class LogisticRegressionModel(BaseClassificationModel):
         X_val: Union[np.ndarray, Tensor],
         y_val: Union[np.ndarray, Tensor],
     ) -> None:
+
         X_train = (
             X_train.detach().cpu().numpy() if isinstance(X_train, Tensor) else X_train
         )
@@ -29,16 +31,12 @@ class LogisticRegressionModel(BaseClassificationModel):
             y_train.detach().cpu().numpy() if isinstance(y_train, Tensor) else y_train
         )
 
-        # if self.tokenizer:
-        #     X_train = [self.tokenizer.encode(x) for x in X_train]
-        #     X_train = np.array(X_train)
-
         self.model.fit(X_train, y_train)
         metrics: Dict[str, float] = self.evaluate(X_train, y_train)
 
         print("Metrics —", ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()))
 
-        from utils import save_metrics  # FIXME: Crado
+        from utils import save_metrics
 
         save_metrics(
             metrics=metrics, epoch=None, path=self.model_path / "train_metrics.json"
@@ -47,9 +45,7 @@ class LogisticRegressionModel(BaseClassificationModel):
         self.save(self.model_path / "model.bz2")
 
     def predict(self, X: Union[np.ndarray, Tensor]) -> np.ndarray:
-        # if self.tokenizer:
-        #     X = [self.tokenizer.encode(x) for x in X]
-        #     X = np.array(X)
+
         X = X.detach().cpu().numpy() if isinstance(X, Tensor) else X
         return self.model.predict(X)
 
@@ -58,10 +54,3 @@ class LogisticRegressionModel(BaseClassificationModel):
 
     def load(self, path: Path) -> None:
         self.model = joblib.load(path)
-
-    # def evaluate(\
-    #     self, X: Union[np.ndarray, Tensor], y: Union[np.ndarray, Tensor]
-    # ) -> float:
-    #     y_pred = self.predict(X)
-    #     y_true = y.detach().cpu().numpy() if isinstance(y, Tensor) else y
-    #     return accuracy_score(y_true, y_pred)

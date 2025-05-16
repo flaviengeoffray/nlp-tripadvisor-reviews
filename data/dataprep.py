@@ -9,7 +9,6 @@ from .augmentation.DataAugmentation import DataAugmentation
 def prepare_data(
     dataset_name: str = "jniimi/tripadvisor-review-rating",
     label_col: str = "overall",
-    drop_columns: list[str] = ["stay_year", "post_date", "freq", "lang"],
     test_size: float = 0.2,
     val_size: float = 0.2,
     seed: int = 42,
@@ -66,7 +65,6 @@ def prepare_data(
 
     if sample_size is not None:
         print("Sample size:", sample_size)
-        # df = df.sample(n=sample_size, random_state=seed)
         df, _ = train_test_split(
             df, train_size=sample_size, stratify=df[label_col], random_state=seed
         )

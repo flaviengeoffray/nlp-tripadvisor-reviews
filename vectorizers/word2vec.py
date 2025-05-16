@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Optional, Sequence
 
 from gensim.models import Word2Vec
 from gensim.utils import simple_preprocess
@@ -10,7 +10,9 @@ from data.tokenizers.base import BaseTokenizer
 
 
 class Word2VecVectorizer(BaseVectorizer):
-    def __init__(self, **kwargs):
+
+    def __init__(self, **kwargs) -> None:
+
         self.vector_size = kwargs.pop("vector_size", 100)
         self.window = kwargs.pop("window", 5)
         self.min_count = kwargs.pop("min_count", 1)
@@ -19,7 +21,8 @@ class Word2VecVectorizer(BaseVectorizer):
         self.max_len = kwargs.pop("max_len", 128)
         self.model: Optional[Word2Vec] = None
 
-    def fit(self, texts: Sequence[str], y: Optional[Any] = None) -> None:
+    def fit(self, texts: Sequence[str]) -> None:
+
         if self.tokenizer:
             sentences = [self.tokenizer.tokenize(text) for text in texts]
         else:
@@ -33,13 +36,13 @@ class Word2VecVectorizer(BaseVectorizer):
         )
 
     def transform(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
+
         if self.model is None:
             raise ValueError("Word2Vec model has not been fitted yet.")
         if self.tokenizer:
             tokens = [self.tokenizer.tokenize(text) for text in texts]
         else:
             tokens = [simple_preprocess(text) for text in texts]
-        # return [self._average_vector(tokens) for tokens in sentences]
         all_vecs = []
         for tokens in tokens:
             vecs = [
@@ -66,6 +69,7 @@ class Word2VecVectorizer(BaseVectorizer):
         return all_vecs
 
     def _average_vector(self, tokens: Sequence[str]) -> Sequence[float]:
+
         vectors = [self.model.wv[word] for word in tokens if word in self.model.wv]
         if not vectors:
             return [0.0] * self.vector_size
@@ -75,6 +79,7 @@ class Word2VecVectorizer(BaseVectorizer):
     def inverse_transform(
         self, vectors: Sequence[Sequence[float]]
     ) -> Sequence[Sequence[str]]:
+
         if self.model is None:
             raise ValueError("Word2Vec model has not been fitted yet.")
         topn = 10
@@ -92,6 +97,7 @@ class Word2VecVectorizer(BaseVectorizer):
         return results
 
     def save(self, path: Path) -> None:
+
         if self.model is None:
             raise ValueError("No model available to save.")
         path = Path(path)
@@ -99,6 +105,7 @@ class Word2VecVectorizer(BaseVectorizer):
         self.model.save(str(path))
 
     def load(self, path: Path) -> None:
+
         path = Path(path)
         self.model = Word2Vec.load(str(path))
         self.vector_size = self.model.vector_size

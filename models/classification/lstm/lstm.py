@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, List, Tuple, Union, Any
+from typing import List, Tuple, Union, Any
 
 import numpy as np
 import torch
@@ -14,11 +14,13 @@ from data.datasets.TextDataset import TextDataset
 
 
 class LSTMModel(BaseTorchModel, BaseClassificationModel):
+    """This implementation may not be working"""
+
     def __init__(
         self,
         model_path: Path,
         **kwargs: Any,
-    ):
+    ) -> None:
         nn.Module.__init__(self)
 
         input_dim: int = kwargs.pop("input_dim", 1)
@@ -31,8 +33,6 @@ class LSTMModel(BaseTorchModel, BaseClassificationModel):
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.bidirectional = bidirectional
-
-        # self.embedding = nn.Embedding(input_dim, 100, padding_idx=pad_idx)
 
         self.lstm = nn.LSTM(
             input_size=input_dim,
@@ -94,8 +94,6 @@ class LSTMModel(BaseTorchModel, BaseClassificationModel):
 
         if not hasattr(X_train, "tolist") or not hasattr(y_train, "tolist"):
             raise ValueError("X_train and y_train needs to by numpy arrays")
-
-        # if nmo
 
         train_ds = TextDataset(
             texts=X_train.tolist(),

@@ -26,12 +26,7 @@ class BaseClassificationModel(BaseModel, ABC):
 
         if y_pred is None:
             y_pred = self.predict(X)
-        # y_true = y.detach().cpu().numpy() if isinstance(y, Tensor) else np.asarray(y)
-        # y_pred_np = (
-        #     y_pred.detach().cpu().numpy()
-        #     if isinstance(y_pred, Tensor)
-        #     else np.asarray(y_pred)
-        # )
+
         if isinstance(y_pred, Tensor):
             y_pred_np = y_pred.detach().cpu().numpy()
         else:

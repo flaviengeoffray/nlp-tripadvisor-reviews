@@ -1,6 +1,6 @@
 from pathlib import Path
 import joblib
-from typing import Any, Optional, Sequence
+from typing import Any, Sequence
 from data.tokenizers.base import BaseTokenizer
 from sklearn.feature_extraction.text import TfidfVectorizer as SklearnTfidfVectorizer
 from .base import BaseVectorizer
@@ -9,6 +9,7 @@ from .base import BaseVectorizer
 class TfidfVectorizer(BaseVectorizer):
 
     def __init__(self, **kwargs: Any) -> None:
+
         self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", None)
         self.vectorizer: SklearnTfidfVectorizer = (
             SklearnTfidfVectorizer(**kwargs, tokenizer=self.tokenizer.tokenize)
@@ -16,7 +17,7 @@ class TfidfVectorizer(BaseVectorizer):
             else SklearnTfidfVectorizer(**kwargs)
         )
 
-    def fit(self, texts: Sequence[str], y: Optional[Any] = None) -> None:
+    def fit(self, texts: Sequence[str]) -> None:
         self.vectorizer.fit(texts)
 
     def transform(self, texts: Sequence[str]) -> Any:

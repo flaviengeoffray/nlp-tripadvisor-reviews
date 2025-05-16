@@ -4,13 +4,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 from torch import Tensor
-import torch
 
-# from torchmetrics.text.bleu import BLEUScore
-# from torchmetrics.text.rouge import ROUGEScore
-# from bert_score import BERTScorer
-
-# from datasets import load_metric
 import evaluate
 from bert_score import BERTScorer
 
@@ -23,11 +17,10 @@ class BaseGenerativeModel(BaseModel, ABC):
     Base class for generative models.
     """
 
-    def __init__(self, model_path: Path, **kwargs: Any):
+    def __init__(self, model_path: Path, **kwargs: Any) -> None:
+
         super().__init__(model_path, **kwargs)
 
-        # self._bleu = load_metric("sacrebleu")
-        # self._rouge = load_metric("rouge")
         self._bleu: evaluate.EvaluationModule = evaluate.load("sacrebleu")
         self._rouge: evaluate.EvaluationModule = evaluate.load("rouge")
         self._bert_scorer: BERTScorer = BERTScorer(
@@ -52,8 +45,6 @@ class BaseGenerativeModel(BaseModel, ABC):
             X = X.tolist()
         elif isinstance(X, np.ndarray):
             X = X.tolist()
-        # elif isinstance(X, list):
-        #     X = X
         elif y_pred is None:
             raise ValueError(f"X is not supported: {type(X)}")
 

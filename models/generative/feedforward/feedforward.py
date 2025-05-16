@@ -1,29 +1,22 @@
-import math
 import numpy as np
 from pathlib import Path
-from typing import Dict, List, Any, Tuple, Optional, Union
+from typing import List, Any, Tuple, Union
 import torch
 from torch import nn
 from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import json
 
-import torchmetrics
-from torchmetrics.text.bleu import BLEUScore
-from torchmetrics.text.rouge import ROUGEScore
+from data.datasets.TripAdvisorDataset import TripAdvisorDataset
 
-from data.datasets.TripAdvisorDataset import TripAdvisorDataset, causal_mask
-
-from data.tokenizers.base import BaseTokenizer
-from data.tokenizers.bpe import BpeTokenizer
 from models.base_pytorch import BaseTorchModel
 from models.generative.base import BaseGenerativeModel
 
 
 class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
 
-    def __init__(self, model_path: Path, **kwargs: Any):
+    def __init__(self, model_path: Path, **kwargs: Any) -> None:
+
         nn.Module.__init__(self)
 
         self.input_dim: int = kwargs.pop("input_dim", 1)
@@ -54,19 +47,8 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         super().__init__(model_path=model_path, **kwargs)
         BaseGenerativeModel.__init__(self, model_path=model_path, **kwargs)
 
-    def forward(self, x, hidden=None):
-        """
-        Forward pass through the Feedforward Network
+    def forward(self, x) -> Tensor:
 
-        Args:
-            x: Input tensor of token IDs [batch_size, seq_len]
-            hidden: Not used in feedforward networks, included for API compatibility
-
-        Returns:
-            output: Probability distribution over output classes
-            hidden: None (for API compatibility with RNN-type models)
-        """
-        # x shape: [batch_size, seq_len]
         embedded = self.embedding(x)
         batch_size, seq_len, embed_dim = embedded.size()
         x = embedded.view(-1, embed_dim)
@@ -74,11 +56,9 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         for layer in self.layers:
             x = layer(x)
 
-        x = x.view(
-            batch_size, seq_len, -1
-        )  # Reshape back to [batch_size, seq_len, vocab_size]
+        x = x.view(batch_size, seq_len, -1)  # (batch_size, seq_len, vocab_size)
 
-        return x, None
+        return x
 
     def _get_dataloaders(
         self,
@@ -107,7 +87,6 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
 
         # Define collate function to handle variable length sequences
         def collate_fn(batch):
-            # Create a dictionary to store batch data
             batch_data = {
                 "encoder_input": [],
                 "decoder_input": [],
@@ -118,7 +97,6 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
                 "target_text": [],
             }
 
-            # Collect all items across the batch
             for item in batch:
                 for key in batch_data:
                     batch_data[key].append(item[key])
@@ -151,16 +129,7 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         return train_loader, val_loader
 
     def _train_loop(self, train_loader: DataLoader, epoch: int) -> float:
-        """
-        Training loop for one epoch
 
-        Args:
-            train_loader: DataLoader for training data
-            epoch: Current epoch number
-
-        Returns:
-            train_loss: Average training loss for this epoch
-        """
         self.train()
         train_loss = 0.0
 
@@ -168,29 +137,22 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
 
             input_seq = batch["decoder_input"].to(self.device)
             target_seq = batch["label"].to(self.device)
-            mask = batch["decoder_mask"].squeeze(1).to(self.device)
 
-            # Zero gradients
             self.optimizer.zero_grad()
 
-            # Forward pass
-            output, _ = self.forward(input_seq)
+            output = self.forward(input_seq)
 
             output = output.reshape(-1, self.vocab_size)
             target_seq = target_seq.reshape(-1)
 
             # Create a mask to ignore padding tokens in loss calculation
-            # -1 for ignored positions (PAD tokens)
             pad_mask = target_seq != self.tokenizer.token_to_id("[PAD]")
 
-            # Create masked targets and outputs
             masked_target = target_seq[pad_mask]
             masked_output = output[pad_mask]
 
-            # Calculate loss
             loss = self.criterion(masked_output, masked_target)
 
-            # Backward pass and optimize
             loss.backward()
 
             # Apply gradient clipping to prevent exploding gradients
@@ -204,17 +166,7 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
     def _val_loop(
         self, val_loader: DataLoader
     ) -> Tuple[List[np.ndarray], List[str], float]:
-        """
-        Validation loop
 
-        Args:
-            val_loader: DataLoader for validation data
-
-        Returns:
-            all_preds: List of prediction arrays
-            all_labels: List of true labels
-            val_loss: Total validation loss
-        """
         self.eval()
         val_loss = 0.0
         all_preds = []
@@ -222,24 +174,20 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
 
         with torch.no_grad():
             for batch in val_loader:
-                # Get input and target sequences
                 input_seq = batch["decoder_input"].to(self.device)
                 target_seq = batch["label"].to(self.device)
 
-                # Forward pass
-                output, _ = self.forward(input_seq)
+                output = self.forward(input_seq)
 
-                # Get predictions
                 _, preds = torch.max(output, dim=2)
 
-                # Calculate loss
                 output_flat = output.reshape(-1, self.vocab_size)
                 target_flat = target_seq.reshape(-1)
                 pad_mask = target_flat != self.tokenizer.token_to_id("[PAD]")
                 loss = self.criterion(output_flat[pad_mask], target_flat[pad_mask])
                 val_loss += loss.item()
 
-                pred_seqs = preds.cpu().numpy()  # array (batch, seq_len)
+                pred_seqs = preds.cpu().numpy()  # (batch, seq_len)
                 tgt_seqs = target_seq.cpu().numpy()
 
                 for pred_ids, tgt_ids in zip(pred_seqs, tgt_seqs):
@@ -276,64 +224,25 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
 
         return [all_preds], all_labels, val_loss
 
-    # def evaluate(self, X: Union[np.ndarray, Tensor] = None, y: Union[np.ndarray, Tensor] = None, y_pred: Union[np.ndarray, Tensor] = None) -> Dict[str, float]:
-    #     """Evaluate the model with NLP metrics using torchmetrics"""
-
-    #     if y_pred is None:
-    #         # If predictions are not provided, generate them
-    #         _, y_pred, _ = self._val_loop(self._get_dataloaders(X, y, X, y, shuffle=False)[1])
-
-    #     # Initialize metrics
-    #     bleu = BLEUScore(n_gram=1, smooth=True)
-    #     rouge = ROUGEScore()
-    #     wer = torchmetrics.WordErrorRate()
-    #     cer = torchmetrics.CharErrorRate()
-
-    #     # Calculate BLEU score
-    #     # Ensure y_pred is a lists of strings
-    #     y_pred = [self.tokenizer.decode(pred) for pred in y_pred]
-
-    #     bleu_score = bleu(y_pred, y)
-
-    #     # Calculate ROUGE scores
-    #     rouge_scores = rouge(y_pred, y)
-
-    #     # Calculate WER and CER
-    #     wer_score = wer(y_pred, y)
-    #     cer_score = cer(y_pred, y)
-
-    #     return {
-    #         "BLEU": bleu_score.item(),
-    #         "ROUGE-1": rouge_scores["rouge1_fmeasure"].item(),
-    #         "ROUGE-2": rouge_scores["rouge2_fmeasure"].item(),
-    #         "ROUGE-L": rouge_scores["rougeL_fmeasure"].item(),
-    #         "WER": wer_score.item(),
-    #         "CER": cer_score.item(),
-    #     }
-
     def generate(
-        self, inputs, max_length: int = 100, temperature=1.0, top_k=50, top_p=0.9
-    ):
-        """
-        Generate review text(s) from instruction input(s).
-        `inputs` can be a single string or a list of strings, each in the format "rating: X keywords: Y".
-        Returns the generated review text(s).
-        """
+        self,
+        inputs: Union[str, List[str]],
+        max_length: int = 100,
+        temperature: float = 1.0,
+        top_k: int = 50,
+        top_p: float = 0.9,
+    ) -> List[str]:
+
         self.eval()
         if isinstance(inputs, str):
             inputs = [inputs]
-            single_input = True
-        else:
-            single_input = False
 
-        # Tokenize each input prompt
         input_token_lists = []
         for prompt in inputs:
             prompt_tokens = self.tokenizer.encode(prompt)
             input_tokens = [self.tokenizer.token_to_id("[SOS]")] + prompt_tokens
             input_token_lists.append(input_tokens)
 
-        # Pad input_token_lists to the same length
         max_prompt_len = max(len(toks) for toks in input_token_lists)
         pad_id = self.tokenizer.token_to_id("[PAD]")
         input_token_lists = [
@@ -345,28 +254,30 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         min_length = 30  # At least 30 tokens before EOS
 
         with torch.no_grad():
+
             batch_size = input_tensor.size(0)
-            # Start with the prompt
-            output, _ = self.forward(input_tensor)
-            # For each sequence in the batch, keep track of generated tokens
+            output = self.forward(input_tensor)
             generated_tokens = [[] for _ in range(batch_size)]
-            # Current tokens: last token of each prompt
             current_tokens = input_tensor[:, -1].unsqueeze(1)
             finished = [False] * batch_size
 
             for i in range(max_length):
+
                 output, _ = self.forward(current_tokens)
-                logits = output[:, -1, :] / temperature  # [batch, vocab]
+                logits = output[:, -1, :] / temperature  # (batch, vocab)
+
                 for b in range(batch_size):
                     if finished[b]:
                         continue
                     next_token_logits = logits[b]
+
                     # Block EOS and PAD if min_length not reached
                     if i < min_length:
                         eos_id = self.tokenizer.token_to_id("[EOS]")
                         pad_id = self.tokenizer.token_to_id("[PAD]")
                         next_token_logits[eos_id] = float("-inf")
                         next_token_logits[pad_id] = float("-inf")
+
                     # Top-k
                     if top_k > 0:
                         top_k_logits, top_k_indices = torch.topk(
@@ -375,6 +286,7 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
                         mask = torch.full_like(next_token_logits, float("-inf"))
                         mask[top_k_indices] = top_k_logits
                         next_token_logits = mask
+
                     # Top-p
                     if top_p > 0:
                         sorted_logits, sorted_indices = torch.sort(
@@ -392,6 +304,7 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
                         next_token_logits[indices_to_remove] = float("-inf")
                     probs = torch.softmax(next_token_logits, dim=-1)
                     next_token = torch.multinomial(probs, 1).item()
+
                     # Stop if EOS or PAD and min_length reached
                     if i >= min_length and next_token in [
                         self.tokenizer.token_to_id("[EOS]"),
@@ -406,13 +319,12 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
 
         for toks in generated_tokens:
             generated_texts.append(self.tokenizer.decode(toks))
+
         # Always return a list, even for single input
         return generated_texts
 
     def save(self, path: Path, epoch: int = None) -> None:
-        """
-        Save the model
-        """
+
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
@@ -429,9 +341,7 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         )
 
     def load(self, path: Path) -> None:
-        """
-        Load the model
-        """
+
         state = torch.load(path, map_location=self.device)
         self.load_state_dict(state["model"])
         self.optimizer.load_state_dict(state["optimizer"])
