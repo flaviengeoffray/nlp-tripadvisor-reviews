@@ -13,7 +13,6 @@ def main(config_path: str) -> None:
     train_df, val_df, test_df = prepare_data(
         dataset_name=config.dataset_name,
         label_col=config.label_col,
-        drop_columns=["stay_year", "post_date", "freq", "lang"],
         test_size=config.test_size,
         val_size=config.val_size,
         seed=config.seed,

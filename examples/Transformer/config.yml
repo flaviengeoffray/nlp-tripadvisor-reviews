@@ -2,7 +2,7 @@ model_path: "examples/Transformer/"
 
 tokenizer:
   type: "bpe"
-  checkpoint: "examples/Transformer/tokenizer.json"
+  # checkpoint: "examples/Transformer/tokenizer.json"
   params:
     vocab_size: 10000
     min_frequency: 2
@@ -17,11 +17,13 @@ tokenizer:
 #     smooth_idf: true
 #     sublinear_tf: false
 #
-sample_size: 1000
+# sample_size: 1000
+
+augmented_data: "augmented.csv"
 
 model:
   type: "transformer"
-  checkpoint: "examples/Transformer/best_model.pt"
+  # checkpoint: "examples/Transformer/best_model.pt"
   params:
     vocab_size: 10000
     batch_size: 8
@@ -33,4 +35,4 @@ model:
     h: 8
     lr: 0.0001
     dropout: 0.1
-    device: "cuda"
+    device: "mps"
