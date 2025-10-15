@@ -1,19 +1,20 @@
+import logging
 from pathlib import Path
 from typing import Any, List, Union
+
 import numpy as np
 import torch
-from datasets import Dataset, ClassLabel
+from datasets import ClassLabel, Dataset
 from transformers import (
-    AutoTokenizer,
     AutoModelForSequenceClassification,
-    Trainer,
-    TrainingArguments,
+    AutoTokenizer,
     DataCollatorWithPadding,
     EarlyStoppingCallback,
+    Trainer,
+    TrainingArguments,
 )
 
 from models.classification.base import BaseClassificationModel
-import logging
 
 logging.basicConfig(
     level=logging.INFO,
@@ -60,6 +61,14 @@ class PretrainedClassifier(BaseClassificationModel):
         self.model.eval()
 
     def fit(self, X_train: Any, y_train: Any, X_val: Any, y_val: Any) -> None:
+        """
+        Train the model.
+
+        :param Any X_train: Training features (raw text)
+        :param Any y_train: Training labels
+        :param Any X_val: Validation features (raw text)
+        :param Any y_val: Validation labels
+        """
         random_seed: int = 42
         class_label = ClassLabel(num_classes=5)
 

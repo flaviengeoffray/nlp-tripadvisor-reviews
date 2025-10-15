@@ -6,9 +6,9 @@ import click
 import numpy as np
 import torch
 
-from pipelines.training import train
 from pipelines.evaluation import evaluate
 from pipelines.generation import generate
+from pipelines.training import train
 from pipelines.utils import load_config
 
 

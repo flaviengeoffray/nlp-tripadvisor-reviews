@@ -1,16 +1,15 @@
 from pathlib import Path
-from typing import List, Tuple, Union, Any
+from typing import Any, List, Tuple, Union
 
 import numpy as np
 import torch
-from torch import Tensor
-from torch import nn
+from torch import Tensor, nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from data.text_dataset import TextDataset
 from models.base_pytorch import BaseTorchModel
 from models.classification.base import BaseClassificationModel
-from data.text_dataset import TextDataset
 
 
 class LSTMModel(BaseTorchModel, BaseClassificationModel):
@@ -48,6 +47,12 @@ class LSTMModel(BaseTorchModel, BaseClassificationModel):
         super().__init__(model_path=model_path, **kwargs)
 
     def forward(self, X: Tensor) -> Tensor:
+        """
+        Forward pass through the network.
+
+        :param Tensor X: Input tensor
+        :return Tensor: Output tensor
+        """
         X = self.vectorizer.transform(X)  # Transform input texts to vectors
 
         h0 = torch.zeros(
@@ -58,11 +63,19 @@ class LSTMModel(BaseTorchModel, BaseClassificationModel):
         )
         c0 = torch.zeros_like(h0)
 
-        out, _ = self.lstm(X, (h0, c0))  # out: [batch_size, seq_len, hidden_dim*directions]
+        out, _ = self.lstm(
+            X, (h0, c0)
+        )  # out: [batch_size, seq_len, hidden_dim*directions]
         out = self.fc(out[:, -1, :])
         return out
 
     def predict(self, X: Union[np.ndarray, Tensor]) -> np.ndarray:
+        """
+        Make predictions with the trained model.
+
+        :param Union[np.ndarray, Tensor] X: Features to predict
+        :return np.ndarray: Predicted class labels
+        """
         self.model.eval()
         X = (
             torch.tensor(X, dtype=torch.float32)
@@ -83,6 +96,16 @@ class LSTMModel(BaseTorchModel, BaseClassificationModel):
         y_val: Any,
         shuffle: bool = True,
     ) -> Tuple[DataLoader, DataLoader]:
+        """
+        Get data loaders for training and validation sets.
+
+        :param Any X_train: Training features
+        :param Any y_train: Training labels
+        :param Any X_val: Validation features
+        :param Any y_val: Validation labels
+        :param bool shuffle: Whether to shuffle the training data
+        :return Tuple[DataLoader, DataLoader]: Training and validation data loaders
+        """
         if hasattr(X_train, "toarray"):
             X_train = X_train.toarray()
 
@@ -115,6 +138,13 @@ class LSTMModel(BaseTorchModel, BaseClassificationModel):
         return train_loader, val_loader
 
     def _train_loop(self, train_loader: DataLoader, epoch: int) -> float:
+        """
+        Train the model for one epoch.
+
+        :param DataLoader train_loader: DataLoader for training data
+        :param int epoch: Current epoch number
+        :return float: Average training loss for the epoch
+        """
         train_loss: float = 0.0
         for B in tqdm(train_loader, desc=f"Processing epoch: {epoch}/{self.epochs}"):
             # X, y = X.to(self.device), y.to(self.device)
@@ -131,6 +161,13 @@ class LSTMModel(BaseTorchModel, BaseClassificationModel):
     def _val_loop(
         self, val_loader: DataLoader
     ) -> Tuple[List[np.ndarray], List[int], float]:
+        """
+        Validate the model for one epoch.
+
+        :param DataLoader val_loader: DataLoader for validation data
+        :return Tuple[List[np.ndarray], List[int], float]: Predictions, true labels, and
+            average validation loss
+        """
         val_loss = 0.0
 
         all_preds: List[np.ndarray] = []

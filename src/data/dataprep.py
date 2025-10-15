@@ -1,10 +1,11 @@
-from datasets import load_dataset
-import pandas as pd
-from sklearn.model_selection import train_test_split
+import logging
 from typing import Optional
 
+import pandas as pd
+from datasets import load_dataset
+from sklearn.model_selection import train_test_split
+
 from .augmentation import DataAugmentation
-import logging
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,6 +29,23 @@ def prepare_data(
     augmentation_workers: Optional[int] = None,
     augmented_data: Optional[str] = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    Load and prepare dataset for training, validation, and testing.
+
+    :param str dataset_name: Name of the dataset to load.
+    :param str label_col: Name of the label column.
+    :param float test_size: Proportion of the dataset to include in the test split.
+    :param float val_size: Proportion of the training set to include in the validation split
+    :param int seed: Random seed for reproducibility.
+    :param bool stratify: Whether to stratify splits based on the label column.
+    :param Optional[int] sample_size: If provided, sample this many instances from the dataset
+    :param bool balance: Whether to balance the dataset using data augmentation.
+    :param float balance_percentage: Target percentage of the majority class after balancing.
+    :param List[str] augmentation_methods: List of augmentation methods to use for balancing.
+    :param Optional[int] augmentation_workers: Number of parallel workers for augmentation.
+    :param Optional[str] augmented_data: Path to CSV file with pre-augmented data
+    :return tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: Train, validation, and test dataframes.
+    """
     logger.info("Loading dataset...")
     raw = load_dataset(dataset_name)
     df = pd.DataFrame(raw["train"])

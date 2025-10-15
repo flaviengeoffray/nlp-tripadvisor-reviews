@@ -1,10 +1,10 @@
-import argparse
-import warnings
+import logging
+
 from data.dataprep import prepare_data
 from models.base import BaseModel
-from .utils import load_tokenizer, load_vectorizer, load_model
+
 from .config import Config
-import logging
+from .utils import load_model, load_tokenizer, load_vectorizer
 
 logging.basicConfig(
     level=logging.INFO,

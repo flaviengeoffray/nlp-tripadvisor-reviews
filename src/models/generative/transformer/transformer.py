@@ -1,19 +1,17 @@
+import logging
 import math
 from typing import Any, Callable, List, Optional, Tuple
+
 import numpy as np
 import torch
-from torch import nn
-from torch import Tensor
+from torch import Tensor, nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 # from torch.utils.tensorboard import SummaryWriter
-
 from data.tripadvisor_dataset import TripAdvisorDataset, causal_mask
-
 from models.base_pytorch import BaseTorchModel
 from models.generative.base import BaseGenerativeModel
-import logging
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,6 +29,12 @@ class Embedding(nn.Module):
         self.embedding: nn.Module = nn.Embedding(vocab_size, d_model)
 
     def forward(self, X: Tensor) -> Tensor:
+        """
+        Compute the embedding for the input tensor.
+
+        :param Tensor X: Input tensor of shape (batch_size, seq_len)
+        :return Tensor: Output tensor of shape (batch_size, seq_len, d_model)
+        """
         return self.embedding(X) * math.sqrt(self.d_model)
 
 
@@ -61,6 +65,12 @@ class PositionalEncoding(nn.Module):
         self.register_buffer("pe", pe)
 
     def forward(self, X: Tensor) -> Tensor:
+        """
+        Compute the positional encoding for the input tensor.
+
+        :param Tensor X: Input tensor of shape (batch_size, seq_len, d_model)
+        :return Tensor: Output tensor of shape (batch_size, seq_len, d_model)
+        """
         # X is (B, seq_len, d_model)
         X = X + (self.pe[:, : X.shape[1], :]).requires_grad_(False)
         return self.dropout(X)
@@ -93,6 +103,12 @@ class FeedForward(nn.Module):
         self.l2: nn.Module = nn.Linear(d_ff, d_model)
 
     def forward(self, X: Tensor) -> Tensor:
+        """
+        Forward pass through the feedforward network.
+
+        :param Tensor X: Input tensor of shape (batch_size, seq_len, d_model)
+        :return Tensor: Output tensor of shape (batch_size, seq_len, d_model)
+        """
         return self.l2(self.dropout(torch.relu(self.l1(X))))  # (B, seq_len, d_model)
 
 
@@ -118,6 +134,15 @@ class MultiHeadAttention(nn.Module):
     def forward(
         self, Q: Tensor, K: Tensor, V: Tensor, mask: Optional[Tensor]
     ) -> Tensor:
+        """
+        Compute the attention scores and output.
+
+        :param Tensor Q: Query tensor of shape (batch_size, seq_len, d_model)
+        :param Tensor K: Key tensor of shape (batch_size, seq_len, d_model)
+        :param Tensor V: Value tensor of shape (batch_size, seq_len, d_model)
+        :param Optional[Tensor] mask: Optional mask tensor of shape (1, seq_len, seq_len)
+        :return Tensor: Output tensor of shape (batch_size, seq_len, d_model)
+        """
         Q = self.w_q(Q)  # (B, seq_len, d_model)
         K = self.w_k(K)  # (B, seq_len, d_model)
         V = self.w_v(V)  # (B, seq_len, d_model)
@@ -148,6 +173,16 @@ class MultiHeadAttention(nn.Module):
         mask: Optional[Tensor],
         dropout: Optional[nn.Dropout],
     ) -> Tuple[Tensor, Tensor]:
+        """
+        Compute the scaled dot-product attention.
+
+        :param Tensor Q: Query tensor of shape (batch_size, h, seq_len, d_k)
+        :param Tensor K: Key tensor of shape (batch_size, h, seq_len, d_k)
+        :param Tensor V: Value tensor of shape (batch_size, h, seq_len, d_k)
+        :param Optional[Tensor] mask: Optional mask tensor of shape (1, 1, seq_len, seq_len)
+        :param Optional[nn.Dropout] dropout: Optional dropout layer
+        :return Tuple[Tensor, Tensor]: Output tensor of shape (batch_size, h, seq_len, d_k) and attention scores of shape (batch_size, h, seq_len, seq_len)
+        """
         d_k = Q.shape[-1]
 
         scores = (Q @ K.transpose(-2, -1)) / math.sqrt(d_k)  # (B, h, seq_len, seq_len)
@@ -171,6 +206,13 @@ class ResidualConnection(nn.Module):
         self.norm: LayerNorm = LayerNorm()
 
     def forward(self, X: Tensor, sublayer: Callable[[Tensor], Tensor]) -> Tensor:
+        """
+        Forward pass through the residual connection.
+
+        :param Tensor X: Input tensor of shape (batch_size, seq_len, d_model)
+        :param Callable[[Tensor], Tensor] sublayer: Sublayer function to apply
+        :return Tensor: Output tensor of shape (batch_size, seq_len, d_model)
+        """
         # Most of online implementations online are doing the layer norm before the sublayer.
         return X + self.dropout(sublayer(self.norm(X)))
 
@@ -190,6 +232,13 @@ class EncoderBlock(nn.Module):
         self.res_feedforward: ResidualConnection = ResidualConnection(dropout)
 
     def forward(self, X, source_mask: Tensor) -> Tensor:
+        """
+        Forward pass through the encoder block.
+
+        :param Tensor X: Input tensor of shape (batch_size, seq_len, d_model)
+        :param Tensor source_mask: Source mask tensor of shape (1, 1, seq_len)
+        :return Tensor: Output tensor of shape (batch_size, seq_len, d_model)
+        """
         X = self.res_self_attention(
             X, lambda X: self.self_attention(X, X, X, source_mask)
         )
@@ -206,6 +255,13 @@ class Encoder(nn.Module):
         self.norm: LayerNorm = LayerNorm()
 
     def forward(self, X: Tensor, source_mask: Tensor) -> Tensor:
+        """
+        Forward pass through the encoder.
+
+        :param Tensor X: Input tensor of shape (batch_size, seq_len, d_model)
+        :param Tensor source_mask: Source mask tensor of shape (1, 1, seq_len)
+        :return Tensor: Output tensor of shape (batch_size, seq_len, d_model)
+        """
         for layer in self.layers:
             X = layer(X, source_mask)
 
@@ -236,6 +292,16 @@ class DecoderBlock(nn.Module):
         source_mask: Tensor,
         target_mask: Tensor,
     ) -> Tensor:
+        """
+        Forward pass through the decoder block.
+
+        :param Tensor X: Input tensor of shape (batch_size, seq_len, d_model)
+        :param Tensor encoder_output: Encoder output tensor of shape (batch_size, seq_len,
+        d_model)
+        :param Tensor source_mask: Source mask tensor of shape (1, 1, seq_len)
+        :param Tensor target_mask: Target mask tensor of shape (1, seq_len, seq_len)
+        :return Tensor: Output tensor of shape (batch_size, seq_len, d_model)
+        """
         X = self.res_self_attention(
             X, lambda X: self.self_attention(X, X, X, target_mask)
         )
@@ -266,6 +332,16 @@ class Decoder(nn.Module):
         source_mask: Tensor,
         target_mask: Tensor,
     ) -> Tensor:
+        """
+        Forward pass through the decoder.
+
+        :param Tensor X: Input tensor of shape (batch_size, seq_len, d_model)
+        :param Tensor encoder_output: Encoder output tensor of shape (batch_size, seq_len,
+        d_model)
+        :param Tensor source_mask: Source mask tensor of shape (1, 1, seq_len)
+        :param Tensor target_mask: Target mask tensor of shape (1, seq_len, seq_len)
+        :return Tensor: Output tensor of shape (batch_size, seq_len, d_model)
+        """
         for layer in self.layers:
             X = layer(X, encoder_output, source_mask, target_mask)
 
@@ -279,8 +355,14 @@ class Projection(nn.Module):
         self.linear: nn.Module = nn.Linear(d_model, vocab_size)
 
     def forward(self, X: Tensor) -> Tensor:
+        """
+        Forward pass through the projection layer.
+
+        :param Tensor X: Input tensor of shape (batch_size, seq_len, d_model)
+        :return Tensor: Output tensor of shape (batch_size, seq_len, vocab_size)
+        """
         # Log-Softmax is used here for numerical stability.
-        return torch.log_softmax(self.linear(X), dim=-1)  # (B, seq_len, vocab_sizs)
+        return torch.log_softmax(self.linear(X), dim=-1)  # (B, seq_len, vocab_size)
 
 
 class Transformer(BaseTorchModel, BaseGenerativeModel):
@@ -349,6 +431,13 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
         ).to(self.device)
 
     def encode(self, source: Tensor, source_mask: Tensor) -> Tensor:
+        """
+        Forward pass through the encoder.
+
+        :param Tensor source: Input tensor of shape (batch_size, seq_len)
+        :param Tensor source_mask: Source mask tensor of shape (1, 1, seq
+        :return Tensor: Output tensor of shape (batch_size, seq_len, d_model)
+        """
         source = self.input_embedding(source)
         source = self.source_position(source)
 
@@ -361,12 +450,28 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
         target: Tensor,
         target_mask: Tensor,
     ) -> Tensor:
+        """
+        Forward pass through the decoder.
+
+        :param Tensor encoder_output: Encoder output tensor of shape (batch_size, seq_len,
+        d_model)
+        :param Tensor source_mask: Source mask tensor of shape (1, 1, seq_len)
+        :param Tensor target: Target tensor of shape (batch_size, seq_len)
+        :param Tensor target_mask: Target mask tensor of shape (1, seq_len, seq_len)
+        :return Tensor: Output tensor of shape (batch_size, seq_len, d_model)
+        """
         target = self.output_embedding(target)
         target = self.target_position(target)
 
         return self.decoder(target, encoder_output, source_mask, target_mask)
 
     def project(self, X: Tensor) -> Tensor:
+        """
+        Forward pass through the projection layer.
+
+        :param Tensor X: Input tensor of shape (batch_size, seq_len, d_model)
+        :return Tensor: Output tensor of shape (batch_size, seq_len, vocab_size)
+        """
         return self.projection(X)
 
     def _get_dataloaders(
@@ -377,6 +482,16 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
         y_val: Any,
         shuffle: bool = True,
     ) -> Tuple[DataLoader, DataLoader]:
+        """
+        Create data loaders for training and validation sets.
+
+        :param Any X_train: Training features
+        :param Any y_train: Training labels
+        :param Any X_val: Validation features
+        :param Any y_val: Validation labels
+        :param bool shuffle: Whether to shuffle the training data
+        :return Tuple[DataLoader, DataLoader]: Training and validation data loaders
+        """
         if not hasattr(X_train, "tolist") or not hasattr(y_train, "tolist"):
             raise ValueError("X_train and y_train needs to by numpy arrays")
 
@@ -405,6 +520,13 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
         return train_loader, val_loader
 
     def inference(self, encoder_input: Tensor, encoder_mask: Tensor) -> Tensor:
+        """
+        Perform inference on the encoder input and mask.
+
+        :param Tensor encoder_input: Input tensor of shape (batch_size, seq_len)
+        :param Tensor encoder_mask: Mask tensor of shape (batch_size, 1, 1, seq_len)
+        :return Tensor: Output tensor of shape (batch_size, seq_len)
+        """
         sos = self.tokenizer.token_to_id("[SOS]")
         eos = self.tokenizer.token_to_id("[EOS]")
 
@@ -447,6 +569,12 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
         return decoder_input
 
     def generate(self, prompt: str) -> List[str]:
+        """
+        Generate text from a prompt.
+
+        :param str prompt: Input prompt string
+        :return List[str]: List of generated text strings
+        """
         self.eval()
 
         sos: Tensor = torch.tensor(
@@ -490,6 +618,13 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
         return preds
 
     def _train_loop(self, train_loader: DataLoader, epoch: int) -> float:
+        """
+        Train the model for one epoch.
+
+        :param DataLoader train_loader: Training data loader
+        :param int epoch: Current epoch number
+        :return float: Training loss for the epoch
+        """
         train_loss: float = 0.0
 
         for B in tqdm(train_loader, desc=f"Processing epoch: {epoch}/{self.epochs}"):
@@ -530,15 +665,13 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
 
     def _val_loop(
         self, val_loader: DataLoader
-    ) -> Tuple[List[np.ndarray], List[int], float]:
-        source_texts = []
+    ) -> Tuple[List[np.ndarray], List[np.ndarray], float]:
         expected_texts = []
         preds = []
 
         val_loss: float = 0.0
 
         with torch.no_grad():
-            i = 0
             for B in tqdm(val_loader, desc="Processing validation:"):
                 encoder_input: Tensor = B["encoder_input"].to(
                     self.device
@@ -555,4 +688,20 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
                 decoder_output = self.decode(
                     encoder_output, encoder_mask, decoder_input, decoder_mask
                 )  # (B, seq_len, d_model)
-                logits = self.project(decoder_output)  # (B, seq_len, vocab_siz
+                logits = self.project(decoder_output)  # (B, seq_len, vocab_size)
+
+                loss = self.criterion(logits.view(-1, self.vocab_size), label.view(-1))
+
+                val_loss += loss.item()
+
+                # Get predictions
+
+                preds_batch = torch.argmax(logits, dim=-1).cpu().numpy()
+
+                preds.extend(preds_batch)
+
+                # Get expected texts
+
+                expected_texts.extend(label.cpu().numpy())
+
+        return preds, expected_texts, val_loss

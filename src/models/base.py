@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Union, Dict
+from typing import Any, Dict, Union
 
 import numpy as np
 from torch import Tensor

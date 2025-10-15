@@ -1,14 +1,13 @@
-import numpy as np
 from pathlib import Path
-from typing import List, Any, Tuple
+from typing import Any, List, Tuple
+
+import numpy as np
 import torch
-from torch import nn
-from torch import Tensor
+from torch import Tensor, nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from data.tripadvisor_dataset import TripAdvisorDataset
-
 from models.base_pytorch import BaseTorchModel
 from models.generative.base import BaseGenerativeModel
 
@@ -38,6 +37,13 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
         BaseGenerativeModel.__init__(self, model_path)
 
     def forward(self, x, hidden=None) -> Tensor:
+        """
+        Forward pass through the model.
+
+        :param Tensor x: Input tensor of shape (batch_size, seq_len)
+        :param Tuple[Tensor, Tensor] hidden: Optional hidden state (h0, c0)
+        :return Tensor: Output tensor of shape (batch_size, seq_len, vocab_size)
+        """
         batch_size = x.size(0)
 
         embedded = self.embedding(x)  # (batch_size, seq_len, embedding_dim)
@@ -70,6 +76,16 @@ class RNNGenModel(BaseTorchModel, BaseGenerativeModel):
         y_val: Any,
         shuffle: bool = True,
     ) -> Tuple[DataLoader, DataLoader]:
+        """
+        Create data loaders for training and validation sets.
+
+        :param Any X_train: Training features
+        :param Any y_train: Training labels
+        :param Any X_val: Validation features
+        :param Any y_val: Validation labels
+        :param bool shuffle: Whether to shuffle the training data
+        :return Tuple[DataLoader, DataLoader]: Training and validation data loaders
+        """
         train_dataset = TripAdvisorDataset(
             texts=X_train,
             ratings=y_train,

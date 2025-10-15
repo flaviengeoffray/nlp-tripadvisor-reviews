@@ -1,10 +1,9 @@
 from pathlib import Path
-from typing import List, Tuple, Union, Any
+from typing import Any, List, Tuple, Union
 
 import numpy as np
 import torch
-from torch import Tensor
-from torch import nn
+from torch import Tensor, nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -40,12 +39,24 @@ class FNNModel(BaseTorchModel, BaseClassificationModel):
         super().__init__(model_path=model_path, **kwargs)
 
     def forward(self, X: Tensor) -> Tensor:
+        """
+        Forward pass through the network.
+
+        :param Tensor X: Input tensor
+        :return Tensor: Output tensor
+        """
         out = X
         for layer in self.layers:
             out = layer(out)
         return out
 
     def predict(self, X: Union[np.ndarray, Tensor]) -> np.ndarray:
+        """
+        Make predictions with the trained model.
+
+        :param X: Features to predict
+        :return np.ndarray: Predicted class labels
+        """
         if hasattr(X, "toarray"):
             X = X.toarray()
 
@@ -63,6 +74,13 @@ class FNNModel(BaseTorchModel, BaseClassificationModel):
         return preds.cpu().numpy() + 1
 
     def _train_loop(self, train_loader: DataLoader, epoch: int) -> float:
+        """
+        Training loop for one epoch.
+
+        :param DataLoader train_loader: DataLoader for training data
+        :param int epoch: Current epoch number
+        :return float: Average training loss for the epoch
+        """
         train_loss: float = 0.0
 
         for X, y in tqdm(train_loader, desc=f"Processing epoch: {epoch}/{self.epochs}"):
@@ -79,6 +97,13 @@ class FNNModel(BaseTorchModel, BaseClassificationModel):
     def _val_loop(
         self, val_loader: DataLoader
     ) -> Tuple[List[np.ndarray], List[int], float]:
+        """
+        Validation loop for one epoch.
+
+        :param DataLoader val_loader: DataLoader for validation data
+        :return Tuple[List[np.ndarray], List[int], float]: Predictions, true labels, and
+            average validation loss
+        """
         val_loss = 0.0
 
         all_preds: List[np.ndarray] = []

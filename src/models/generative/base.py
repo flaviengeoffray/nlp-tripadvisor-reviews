@@ -2,11 +2,10 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-import numpy as np
-from torch import Tensor
-
 import evaluate
+import numpy as np
 from bert_score import BERTScorer
+from torch import Tensor
 
 from data.tripadvisor_dataset import extract_keywords
 from models.base import BaseModel
@@ -39,6 +38,15 @@ class BaseGenerativeModel(BaseModel, ABC):
         y: Union[np.ndarray, Tensor, List[int]],
         y_pred: Optional[Union[np.ndarray, Tensor, List[int]]] = None,
     ) -> Dict[str, float]:
+        """
+        Evaluate the model's performance.
+
+        :param Union[np.ndarray, Tensor, List[Any]] X: Input data (list of sentences)
+        :param Union[np.ndarray, Tensor, List[int]] y: True labels (list of target texts)
+        :param Optional[Union[np.ndarray, Tensor, List[int]]] y_pred:
+            Predicted labels (if already computed to avoid recomputation)
+        :return Dict[str, float]: Dictionary with BLEU, ROUGE, and BERTScore metrics
+        """
         if isinstance(X, Tensor):
             X = X.tolist()
         elif isinstance(X, np.ndarray):

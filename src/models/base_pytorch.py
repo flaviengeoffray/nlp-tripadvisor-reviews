@@ -1,17 +1,17 @@
-from pathlib import Path
+import logging
 from abc import abstractmethod
-from typing import Any, List, Tuple, Dict
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import torch
-from torch import Tensor
-from torch import nn
-from torch.utils.data import DataLoader, TensorDataset
+from torch import Tensor, nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.utils.data import DataLoader, TensorDataset
+
+from my_tokenizers.base import BaseTokenizer
 
 from .base import BaseModel
-from my_tokenizers.base import BaseTokenizer
-import logging
 
 logging.basicConfig(
     level=logging.INFO,
@@ -81,6 +81,16 @@ class BaseTorchModel(nn.Module, BaseModel):
         y_val: Any,
         shuffle: bool = True,
     ) -> Tuple[DataLoader, DataLoader]:
+        """
+        Prepare the data loaders for training and validation.
+
+        :param Any X_train: Training features
+        :param Any y_train: Training labels
+        :param Any X_val: Validation features
+        :param Any y_val: Validation labels
+        :param bool shuffle: Whether to shuffle the training data
+        :return Tuple[DataLoader, DataLoader]: Training and validation data loaders
+        """
         if hasattr(X_train, "toarray"):
             X_train = X_train.toarray()
 
@@ -125,6 +135,14 @@ class BaseTorchModel(nn.Module, BaseModel):
         X_val: Any,
         y_val: Any,
     ) -> None:
+        """
+        Prepare the data loaders for training and validation.
+
+        :param Any X_train: Training features
+        :param Any y_train: Training labels
+        :param Any X_val: Validation features
+        :param Any y_val: Validation labels
+        """
         self.to(self.device)
         patience_counter = 0
         best_val_loss = float("inf")
@@ -170,14 +188,6 @@ class BaseTorchModel(nn.Module, BaseModel):
                 ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()),
             )
 
-            from utils import save_metrics  # FIXME: Crado
-
-            save_metrics(
-                metrics=metrics,
-                epoch=epoch,
-                path=self.model_path / "train_metrics.json",
-            )
-
             if self.scheduler:
                 self.scheduler.step(val_loss)
 
@@ -192,6 +202,12 @@ class BaseTorchModel(nn.Module, BaseModel):
                     break
 
     def save(self, path: Path, epoch: int) -> None:
+        """
+        Save the model checkpoint.
+
+        :param Path path: Path to save the model
+        :param int epoch: Current epoch number
+        """
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
@@ -203,6 +219,11 @@ class BaseTorchModel(nn.Module, BaseModel):
         )
 
     def load(self, path: Path) -> None:
+        """
+        Load the model checkpoint.
+
+        :param Path path: Path to load the model from
+        """
         state = torch.load(path, map_location="cpu")
         self.load_state_dict(state["model"])
         self.optimizer.load_state_dict(state["optimizer"])
@@ -211,6 +232,13 @@ class BaseTorchModel(nn.Module, BaseModel):
 
     @abstractmethod
     def _train_loop(self, train_loader: DataLoader, epoch: int) -> float:
+        """
+        Train the model for one epoch.
+
+        :param DataLoader train_loader: DataLoader for training data
+        :param int epoch: Current epoch number
+        :return float: Average training loss for the epoch
+        """
         raise NotImplementedError
 
     @abstractmethod

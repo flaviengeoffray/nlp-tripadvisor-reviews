@@ -1,10 +1,10 @@
-import argparse
-import warnings
 import logging
+
 from data.dataprep import prepare_data
 from models.base import BaseModel
-from .utils import load_tokenizer, load_vectorizer, load_model
+
 from .config import Config
+from .utils import load_model, load_tokenizer, load_vectorizer, save_metrics
 
 logging.basicConfig(
     level=logging.INFO,
@@ -15,6 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 def train(config: Config) -> None:
+    """
+    Train the model using the provided configuration.
+
+    :param Config config: Configuration object.
+    """
     train_df, val_df, test_df = prepare_data(
         dataset_name=config.dataset_name,
         label_col=config.label_col,
@@ -56,8 +61,10 @@ def train(config: Config) -> None:
         else:
             logger.info("Fitting tokenizer on training data...")
             tokenizer.fit(X_train)
-            logger.info(f"Saving tokenizer to {config.model_path / 'tokenizer.json'}...")
-            
+            logger.info(
+                f"Saving tokenizer to {config.model_path / 'tokenizer.json'}..."
+            )
+
     if config.vectorizer:
         logger.info("Loading vectorizer...")
         vectorizer = load_vectorizer(config.vectorizer)
@@ -70,17 +77,18 @@ def train(config: Config) -> None:
         else:
             logger.info("Fitting vectorizer on training data...")
             vectorizer.fit(X_train)
-            logger.info(f"Saving vectorizer to {config.model_path / 'vectorizer.bz2'}...")
+            logger.info(
+                f"Saving vectorizer to {config.model_path / 'vectorizer.bz2'}..."
+            )
 
         logger.info("Transforming training and validation data with vectorizer...")
         X_train = vectorizer.transform(X_train)
         X_val = vectorizer.transform(X_val)
         X_test = vectorizer.transform(X_test)
-            
 
     logger.info("Loading model...")
     model: BaseModel = load_model(config.model, config.model_path)
-    
+
     model.tokenizer = tokenizer if config.tokenizer else None
     model.vectorizer = vectorizer if config.vectorizer else None
 
@@ -97,4 +105,7 @@ def train(config: Config) -> None:
         y_test,
         None,
     )
+    
+    save_metrics(config.model_path, metrics)
+    
     logger.info("Metrics:", metrics)

@@ -1,13 +1,14 @@
-import math
-from typing import Any
-from my_tokenizers.base import BaseTokenizer
 import json
+import math
+from collections import Counter, defaultdict
+from typing import Any
+
+import nltk
+from nltk.util import ngrams
 
 from models.generative.base import BaseGenerativeModel
-import nltk
-from collections import Counter, defaultdict
+from my_tokenizers.base import BaseTokenizer
 from my_tokenizers.bpe import BpeTokenizer
-from nltk.util import ngrams
 
 nltk.download("punkt", quiet=True)
 import logging
@@ -33,6 +34,14 @@ class NgramGenerator(BaseGenerativeModel):
         super().__init__(model_path=model_path, **kwargs)
 
     def fit(self, X_train: Any, y_train: Any, X_val: Any, y_val: Any) -> None:
+        """
+        Fit the model to the training data.
+
+        :param Any X_train: Training features (list of sentences)
+        :param Any y_train: Training labels (not used in n-gram model)
+        :param Any X_val: Validation features (not used in n-gram model)
+        :param Any y_val: Validation labels (not used in n-gram model)
+        """
         logger.info("[NgramGenerator] Starting training...")
         tokenized = [self.tokenizer.encode(s.lower()) for s in X_train]
         logger.info(f"[NgramGenerator] Tokenized {len(tokenized)} sentences.")
@@ -97,7 +106,9 @@ class NgramGenerator(BaseGenerativeModel):
         for i in range(max_length):
             next_token = self.infer_next_token(out)
             if not next_token:
-                logger.info("[NgramGenerator] No next token found, stopping generation.")
+                logger.info(
+                    "[NgramGenerator] No next token found, stopping generation."
+                )
                 break
             out.append(next_token)
             if next_token == last_token:

@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Union
+
 import numpy as np
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from torch import Tensor
-from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 
 from models.base import BaseModel
 
@@ -23,6 +24,15 @@ class BaseClassificationModel(BaseModel, ABC):
         y: Union[np.ndarray, Tensor],
         y_pred: Union[np.ndarray, Tensor] = None,
     ) -> Dict[str, float]:
+        """
+        Evaluate the model's performance.
+
+        :param Union[np.ndarray, Tensor] X: Features to evaluate
+        :param Union[np.ndarray, Tensor] y: True labels
+        :param Union[np.ndarray, Tensor] y_pred: Predicted labels (if already computed
+            to avoid recomputation)
+        :return Dict[str, float]: Dictionary with accuracy, precision, recall, and f1
+        """
         if y_pred is None:
             y_pred = self.predict(X)
 

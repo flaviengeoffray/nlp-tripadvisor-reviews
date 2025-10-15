@@ -3,9 +3,9 @@ from collections import Counter
 from typing import Dict, List
 
 import torch
+from nltk.corpus import stopwords
 from torch import Tensor
 from torch.utils.data import Dataset
-from nltk.corpus import stopwords
 
 from my_tokenizers.base import BaseTokenizer
 
@@ -13,6 +13,13 @@ stop_words = set(stopwords.words("english"))
 
 
 def extract_keywords(text: str, max_keywords: int = 8) -> str:
+    """
+    Extract keywords from the given text.
+
+    :param str text: Input text.
+    :param int max_keywords: Maximum number of keywords to extract.
+    :return str: Comma-separated keywords.
+    """
     tokens = re.findall(r"\b\w+\b", text.lower())
     tokens = [t for t in tokens if t not in stop_words and len(t) > 2]
     freq = Counter(tokens)
@@ -21,6 +28,12 @@ def extract_keywords(text: str, max_keywords: int = 8) -> str:
 
 
 def causal_mask(size: int) -> Tensor:
+    """
+    Create a causal mask for sequence modeling.
+
+    :param int size: Size of the mask (sequence length).
+    :return Tensor: Causal mask tensor of shape (1, size, size).
+    """
     # To keep only the previous context and mask the word swe haven't seen yet.
     return torch.triu(torch.ones(1, size, size), diagonal=1).type(torch.int) == 0
 
@@ -57,6 +70,13 @@ class TripAdvisorDataset(Dataset):
         return len(self.ratings)
 
     def __getitem__(self, idx) -> Dict[str, Tensor]:
+        """
+        Get a data sample for the given index.
+
+        :param int idx: Index of the sample to retrieve.
+        :return Dict[str, Tensor]: Dictionary containing encoder_input, decoder_input, masks, label
+        and original texts.
+        """
         text = self.texts[idx]
         rating = self.ratings[idx]
 

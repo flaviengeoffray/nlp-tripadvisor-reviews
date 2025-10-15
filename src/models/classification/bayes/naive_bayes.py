@@ -1,12 +1,12 @@
-import numpy as np
+import logging
 import pickle
 from pathlib import Path
 from typing import Any, Union
 
+import numpy as np
 from sklearn.naive_bayes import MultinomialNB
 
 from models.classification.base import BaseClassificationModel
-import logging
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,11 +32,11 @@ class NaiveBayesModel(BaseClassificationModel):
         """
         Initialize the Naive Bayes model.
 
-        Args:
-            model_path: Path to save/load model
-            alpha: Additive (Laplace/Lidstone) smoothing parameter (0 for no smoothing)
-            fit_prior: Whether to learn class prior probabilities or not
-            **kwargs: Additional keyword arguments
+
+        :param Path model_path: Path to save/load model
+        :param float alpha: Additive (Laplace/Lidstone) smoothing parameter (0 for no smoothing)
+        :param bool fit_prior: Whether to learn class prior probabilities or not
+        :param kwargs: Additional keyword arguments
         """
         super().__init__(model_path, **kwargs)
 
@@ -55,11 +55,10 @@ class NaiveBayesModel(BaseClassificationModel):
         """
         Train the Naive Bayes model.
 
-        Args:
-            X_train: Training features (document vectors)
-            y_train: Training labels
-            X_val: Validation features (not used in Naive Bayes but kept for interface consistency)
-            y_val: Validation labels (not used in Naive Bayes but kept for interface consistency)
+        :param X_train: Training features (document vectors)
+        :param y_train: Training labels
+        :param X_val: Validation features (not used in Naive Bayes but kept for interface consistency)
+        :param y_val: Validation labels (not used in Naive Bayes but kept for interface consistency)
         """
         # Convert to numpy arrays if not already
         if hasattr(X_train, "toarray"):
@@ -99,15 +98,6 @@ class NaiveBayesModel(BaseClassificationModel):
             for metric_name, metric_value in metrics.items():
                 logger.info(f"  {metric_name}: {metric_value:.4f}")
 
-            # Save metrics
-            from utils import save_metrics
-
-            save_metrics(
-                metrics=metrics,
-                epoch=0,  # Naive Bayes has no epochs
-                path=self.model_path / "train_metrics.json",
-            )
-
         # Save the trained model
         self.save(self.model_path / "model.pkl")
         logger.info(f"Model saved to {self.model_path / 'model.pkl'}")
@@ -116,11 +106,9 @@ class NaiveBayesModel(BaseClassificationModel):
         """
         Make predictions with the trained model.
 
-        Args:
-            X: Features to predict
+        :param X: Features to predict
 
-        Returns:
-            Predicted class probabilities
+        :return: Predicted class probabilities
         """
         if hasattr(X, "toarray"):
             X = X.toarray()
@@ -132,8 +120,7 @@ class NaiveBayesModel(BaseClassificationModel):
         """
         Save the model to disk.
 
-        Args:
-            path: Path to save the model
+        :param Path path: Path to save the model
         """
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as f:
@@ -143,8 +130,7 @@ class NaiveBayesModel(BaseClassificationModel):
         """
         Load the model from disk.
 
-        Args:
-            path: Path to load the model from
+        :param Path path: Path to load the model from
         """
         with open(path, "rb") as f:
             self.model = pickle.load(f)

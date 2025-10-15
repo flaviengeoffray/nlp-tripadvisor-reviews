@@ -2,34 +2,30 @@ import json
 import os
 from pathlib import Path
 from typing import Any, Dict
+
 import yaml
-from my_tokenizers.base import TokenizerConfig
-from models.generative.ngram.ngram import NgramGenerator
-from models.classification.pretrained.pretrained import PretrainedClassifier
-from models.generative.feedforward.feedforward import FNNGenerativeModel
-from models.generative.pretrained.pretrained import PretrainedGenerator
-from my_vectorizers.base import VectorizerConfig
-from models.base import BaseModelConfig, BaseModel
-from .config import Config
 
-from my_tokenizers.base import BaseTokenizer
-from my_tokenizers.bpe import BpeTokenizer
-from my_vectorizers.base import BaseVectorizer
-from my_vectorizers.tfidf import TfidfVectorizer
-
-from my_vectorizers.word2vec import Word2VecVectorizer
-
+from models.base import BaseModel, BaseModelConfig
 from models.classification.bayes.naive_bayes import NaiveBayesModel
+from models.classification.feedforward.feedforward import FNNModel
 from models.classification.logistic_regression.logistic_regression import (
     LogisticRegressionModel,
 )
-from models.classification.feedforward.feedforward import FNNModel
-from models.classification.rnn.rnn import RNNClassifier
 from models.classification.lstm.lstm import LSTMModel
-
+from models.classification.pretrained.pretrained import PretrainedClassifier
+from models.classification.rnn.rnn import RNNClassifier
+from models.generative.feedforward.feedforward import FNNGenerativeModel
+from models.generative.ngram.ngram import NgramGenerator
+from models.generative.pretrained.pretrained import PretrainedGenerator
 from models.generative.rnn.rnn import RNNGenModel
 from models.generative.transformer.transformer import Transformer
+from my_tokenizers.base import BaseTokenizer, TokenizerConfig
+from my_tokenizers.bpe import BpeTokenizer
+from my_vectorizers.base import BaseVectorizer, VectorizerConfig
+from my_vectorizers.tfidf import TfidfVectorizer
+from my_vectorizers.word2vec import Word2VecVectorizer
 
+from .config import Config
 
 TOKENIZER_REGISTRY = {"bpe": BpeTokenizer}
 

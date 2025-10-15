@@ -1,7 +1,8 @@
+from typing import Dict, List
+
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset
-from typing import Dict, List
 
 from my_tokenizers.base import BaseTokenizer
 
@@ -16,9 +17,18 @@ class TextDataset(Dataset):
         self.max_len: int = max_len
 
     def __len__(self) -> int:
+        """Return the number of samples in the dataset.
+
+        :return int: Number of samples."""
         return len(self.texts)
 
     def __getitem__(self, idx: int) -> Dict[str, Tensor]:
+        """
+        Get a sample from the dataset.
+
+        :param int idx: Index of the sample to retrieve.
+        :return Dict[str, Tensor]: Dictionary containing input_ids, length, and label tensors.
+        """
         text: str = self.texts[idx]
         tokens: List[int] = self.tokenizer.encode(text)
         if len(tokens) > self.max_len:

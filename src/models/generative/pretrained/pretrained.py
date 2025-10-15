@@ -1,17 +1,18 @@
+import logging
 from pathlib import Path
 from typing import Any, List, Union
+
 import torch
 from datasets import Dataset
 from transformers import (
-    AutoTokenizer,
     AutoModelForSeq2SeqLM,
+    AutoTokenizer,
+    DataCollatorForSeq2Seq,
     Trainer,
     TrainingArguments,
-    DataCollatorForSeq2Seq,
 )
 
 from models.generative.base import BaseGenerativeModel
-import logging
 
 logging.basicConfig(
     level=logging.INFO,
@@ -59,6 +60,14 @@ class PretrainedGenerator(BaseGenerativeModel):
         X_val: Any,
         y_val: Any,
     ) -> None:
+        """
+        Train the generative model.
+
+        :param Any X_train: Training features (list of input texts)
+        :param Any y_train: Training labels (list of target texts)
+        :param Any X_val: Validation features (list of input texts)
+        :param Any y_val: Validation labels (list of target texts)
+        """
         random_seed: int = 42
 
         train_data = Dataset.from_dict(

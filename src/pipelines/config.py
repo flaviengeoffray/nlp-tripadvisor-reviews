@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
-from my_tokenizers.base import TokenizerConfig
+
 from models.base import BaseModelConfig
+from my_tokenizers.base import TokenizerConfig
 from my_vectorizers.base import VectorizerConfig
 
 

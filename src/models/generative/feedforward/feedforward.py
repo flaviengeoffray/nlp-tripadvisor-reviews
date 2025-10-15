@@ -1,14 +1,13 @@
-import numpy as np
 from pathlib import Path
-from typing import List, Any, Tuple, Union
+from typing import Any, List, Tuple, Union
+
+import numpy as np
 import torch
-from torch import nn
-from torch import Tensor
+from torch import Tensor, nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from data.tripadvisor_dataset import TripAdvisorDataset
-
 from models.base_pytorch import BaseTorchModel
 from models.generative.base import BaseGenerativeModel
 
@@ -46,6 +45,12 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         BaseGenerativeModel.__init__(self, model_path=model_path, **kwargs)
 
     def forward(self, x) -> Tensor:
+        """
+        Forward pass through the model.
+
+        :param Tensor x: Input tensor of shape (batch_size, seq_len)
+        :return Tensor: Output tensor of shape (batch_size, seq_len, vocab_size)
+        """
         embedded = self.embedding(x)
         batch_size, seq_len, embed_dim = embedded.size()
         x = embedded.view(-1, embed_dim)
@@ -65,6 +70,16 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         y_val: Any,
         shuffle: bool = True,
     ) -> Tuple[DataLoader, DataLoader]:
+        """
+        Create data loaders for training and validation.
+
+        :param Any X_train: Training features
+        :param Any y_train: Training labels
+        :param Any X_val: Validation features
+        :param Any y_val: Validation labels
+        :param bool shuffle: Whether to shuffle the training data
+        :return Tuple[DataLoader, DataLoader]: Training and validation data loaders
+        """
         train_dataset = TripAdvisorDataset(
             texts=X_train,
             ratings=y_train,
@@ -125,6 +140,13 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         return train_loader, val_loader
 
     def _train_loop(self, train_loader: DataLoader, epoch: int) -> float:
+        """
+        Train the model for one epoch.
+
+        :param DataLoader train_loader: DataLoader for training data
+        :param int epoch: Current epoch number
+        :return float: Average training loss for the epoch
+        """
         self.train()
         train_loss = 0.0
 
@@ -160,6 +182,13 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
     def _val_loop(
         self, val_loader: DataLoader
     ) -> Tuple[List[np.ndarray], List[str], float]:
+        """
+        Validate the model for one epoch.
+
+        :param DataLoader val_loader: DataLoader for validation data
+        :return Tuple[List[np.ndarray], List[str], float]: Predictions, true labels, and
+            average validation loss
+        """
         self.eval()
         val_loss = 0.0
         all_preds = []
@@ -225,6 +254,16 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         top_k: int = 50,
         top_p: float = 0.9,
     ) -> List[str]:
+        """
+        Generate text from the model.
+
+        :param Union[str, List[str]] inputs: Input prompt(s) as string or list of strings
+        :param int max_length: Maximum length of generated text
+        :param float temperature: Sampling temperature
+        :param int top_k: Top-k sampling parameter
+        :param float top_p: Top-p (nucleus) sampling parameter
+        :return List[str]: Generated text(s)
+        """
         self.eval()
         if isinstance(inputs, str):
             inputs = [inputs]
@@ -314,6 +353,12 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         return generated_texts
 
     def save(self, path: Path, epoch: int = None) -> None:
+        """
+        Save the model checkpoint.
+
+        :param Path path: Path to save the model
+        :param int epoch: Current epoch number (optional)
+        """
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
@@ -330,6 +375,11 @@ class FNNGenerativeModel(BaseTorchModel, BaseGenerativeModel):
         )
 
     def load(self, path: Path) -> None:
+        """
+        Load the model checkpoint.
+
+        :param Path path: Path to load the model from
+        """
         state = torch.load(path, map_location=self.device)
         self.load_state_dict(state["model"])
         self.optimizer.load_state_dict(state["optimizer"])
