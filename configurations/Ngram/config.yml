@@ -1,0 +1,25 @@
+model_path: "configurations/Ngram/"
+
+# dataset_name: "jniimi/tripadvisor-review-rating"
+# review_col: "review"
+# label_col: "overall"
+# sample_size: 50000
+# balance: true
+# balance_percentage: 0.8
+# augmentation_methods:
+#   - "synonym"
+#   - "sentence_shuffle"
+#   - "word_deletion"
+
+tokenizer:
+  type: "bpe"
+  # checkpoint: "configurations/Ngram/tokenizer.json"
+  params:
+    vocab_size: 10000
+    min_frequency: 2
+
+model:
+  type: "ngram"
+  # checkpoint: "configurations/Ngram/model.json"
+  params:
+    order: 15

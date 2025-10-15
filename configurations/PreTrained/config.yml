@@ -1,0 +1,10 @@
+model_path: "configurations/PreTrained/"
+
+augmented_data: "augmented.csv"
+
+model:
+  type: "pre-trained"
+  params:
+    model_checkpoint: "distilbert-base-uncased" # "gaunernst/bert-tiny-uncased" #
+    epochs: 15
+    batch_size: 64

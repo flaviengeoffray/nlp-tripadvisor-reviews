@@ -1,0 +1,23 @@
+model_path: "configurations/PreTrainedGenerative/"
+
+# dataset_name: "jniimi/tripadvisor-review-rating"
+# review_col: "review"
+# label_col: "overall"
+# sample_size: 10000
+# balance: true
+# balance_percentage: 0.8
+# augmentation_methods:
+#   - "synonym"
+#   - "sentence_shuffle"
+#   - "word_deletion"
+
+augmented_data: "augmented.csv"
+
+model:
+  type: "pre-trained"
+  params:
+    model_checkpoint: "prajjwal1/bert-tiny" # "gaunernst/bert-tiny-uncased" #
+    epochs: 15
+    batch_size: 16
+    patience: 3
+    device: "mps"

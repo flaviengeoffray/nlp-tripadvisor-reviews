@@ -27,7 +27,7 @@ python evaluate.py -c config.yml   # Evaluate trained model
 python generate.py -c config.yml   # Generate new reviews
 ```
 
-Example configuration files are available in the `examples/` directory. All training, preprocessing, and model details are specified via YAML.
+Example configuration files are available in the `configurations` directory. All training, preprocessing, and model details are specified via YAML.
 
 ---
 
@@ -129,7 +129,7 @@ Modular, configuration-driven system:
 ├── evaluate.py       # Evaluation script
 ├── generate.py       # Text generation script
 ├── data/             # Preprocessing and augmentation
-├── examples/         # Example config files
+├── configurations/   # Example config files
 ├── notebooks/        # Exploratory notebooks
 ```
 
