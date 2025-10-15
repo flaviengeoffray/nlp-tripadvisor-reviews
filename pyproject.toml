@@ -30,7 +30,3 @@ dependencies = [
     "rouge-score==0.1.2",
     "ruff>=0.14.0",
 ]
-
-# script
-[tool.scripts]
-main = "main:main"

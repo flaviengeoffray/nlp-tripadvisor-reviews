@@ -6,6 +6,14 @@ from typing import Any, Union
 from sklearn.naive_bayes import MultinomialNB
 
 from models.classification.base import BaseClassificationModel
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 class NaiveBayesModel(BaseClassificationModel):
@@ -69,7 +77,7 @@ class NaiveBayesModel(BaseClassificationModel):
             y_train = np.array(y_train, dtype=int) - 1
 
         # Train the model
-        print("Training Naive Bayes model...")
+        logger.info("Training Naive Bayes model...")
         self.model.fit(X_train, y_train)
 
         # If validation data is provided, evaluate and print metrics
@@ -87,9 +95,9 @@ class NaiveBayesModel(BaseClassificationModel):
             y_pred = self.predict(X_val)
             metrics = self.evaluate(X_val, y_val, y_pred)
 
-            print("Validation Metrics:")
+            logger.info("Validation Metrics:")
             for metric_name, metric_value in metrics.items():
-                print(f"  {metric_name}: {metric_value:.4f}")
+                logger.info(f"  {metric_name}: {metric_value:.4f}")
 
             # Save metrics
             from utils import save_metrics
@@ -102,7 +110,7 @@ class NaiveBayesModel(BaseClassificationModel):
 
         # Save the trained model
         self.save(self.model_path / "model.pkl")
-        print(f"Model saved to {self.model_path / 'model.pkl'}")
+        logger.info(f"Model saved to {self.model_path / 'model.pkl'}")
 
     def predict(self, X: Union[np.ndarray, Any]) -> np.ndarray:
         """

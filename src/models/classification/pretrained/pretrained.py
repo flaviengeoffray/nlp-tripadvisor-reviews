@@ -13,6 +13,14 @@ from transformers import (
 )
 
 from models.classification.base import BaseClassificationModel
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 class PretrainedClassifier(BaseClassificationModel):
@@ -25,7 +33,21 @@ class PretrainedClassifier(BaseClassificationModel):
         self.epochs: int = kwargs.pop("epochs", 3)
         self.batch_size: int = kwargs.pop("batch_size", 8)
         self.patience: int = kwargs.pop("patience", 2)
-        self.device: str = kwargs.pop("device", "cuda")
+        requested_device: str = kwargs.pop("device", "cuda")
+        if requested_device == "mps":
+            if not torch.backends.mps.is_available():
+                logger.warning(
+                    "Warning: MPS device requested but not available. Using CPU instead."
+                )
+                self.device = "cpu"
+            else:
+                logger.info(
+                    "Warning: MPS backend has limited memory. If you encounter OOM errors, set device='cpu'."
+                )
+                self.device = "mps"
+        else:
+            self.device = requested_device
+
         self.tokenizer: AutoTokenizer = AutoTokenizer.from_pretrained(
             self.model_checkpoint
         )
@@ -104,14 +126,14 @@ class PretrainedClassifier(BaseClassificationModel):
             callbacks=[EarlyStoppingCallback(early_stopping_patience=self.patience)],
         )
 
-        print(f"Model is on device: {next(self.model.parameters()).device}")
+        logger.info(f"Model is on device: {next(self.model.parameters()).device}")
 
         self.model.train()
         trainer.train()
         self.model.eval()
 
         metrics = trainer.evaluate()
-        print(f"Validation: {metrics}")
+        logger.info(f"Validation: {metrics}")
         self.save(self.model_path / "checkpoint")
 
     def predict(self, texts: Union[str, List[str], np.ndarray]) -> List[int]:

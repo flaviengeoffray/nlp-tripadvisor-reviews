@@ -4,6 +4,14 @@ from sklearn.model_selection import train_test_split
 from typing import Optional
 
 from .augmentation import DataAugmentation
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 def prepare_data(
@@ -20,25 +28,25 @@ def prepare_data(
     augmentation_workers: Optional[int] = None,
     augmented_data: Optional[str] = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    print("Loading dataset...")
+    logger.info("Loading dataset...")
     raw = load_dataset(dataset_name)
     df = pd.DataFrame(raw["train"])
 
     if augmented_data is not None:
         df_aug = pd.read_csv(augmented_data)
         df = pd.concat([df, df_aug], ignore_index=True)
-    print("Dataset loaded.")
+    logger.info("Dataset loaded.")
 
     if balance:
-        print("Balancing dataset...")
+        logger.info("Balancing dataset...")
 
-        print("Class distribution before balancing:")
-        print(df[label_col].value_counts())
+        logger.info("Class distribution before balancing:")
+        logger.info(df[label_col].value_counts())
 
         augmenter = DataAugmentation(
             random_state=seed, num_workers=augmentation_workers
         )
-        print("Augmentation methods:", augmentation_methods)
+        logger.info("Augmentation methods: %s", augmentation_methods)
 
         class_counts = df[label_col].value_counts().to_dict()
         max_count = max(class_counts.values())
@@ -56,19 +64,19 @@ def prepare_data(
             methods=augmentation_methods,
         )
 
-        print("Class distribution after balancing:")
-        print(df[label_col].value_counts())
+        logger.info("Class distribution after balancing:")
+        logger.info(df[label_col].value_counts())
     else:
-        print("Class distribution:")
-        print(df[label_col].value_counts())
+        logger.info("Class distribution:")
+        logger.info(df[label_col].value_counts())
 
     if sample_size is not None:
-        print("Sample size:", sample_size)
+        logger.info("Sample size: %d", sample_size)
         df, _ = train_test_split(
             df, train_size=sample_size, stratify=df[label_col], random_state=seed
         )
-        print("Class distribution of subset:")
-        print(df[label_col].value_counts())
+        logger.info("Class distribution of subset:")
+        logger.info(df[label_col].value_counts())
 
     df = df.dropna()
     df = df.drop_duplicates()

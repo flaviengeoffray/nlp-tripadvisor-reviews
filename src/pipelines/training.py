@@ -1,9 +1,17 @@
 import argparse
 import warnings
+import logging
 from data.dataprep import prepare_data
 from models.base import BaseModel
 from .utils import load_tokenizer, load_vectorizer, load_model
 from .config import Config
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 def train(config: Config) -> None:
@@ -38,56 +46,55 @@ def train(config: Config) -> None:
     )
 
     if config.tokenizer:
-        print("Loading tokenizer...")
+        logger.info("Loading tokenizer...")
         tokenizer = load_tokenizer(config.tokenizer)
         if config.tokenizer.checkpoint:
-            print(f"Loading tokenizer checkpoint from {config.tokenizer.checkpoint}...")
+            logger.info(
+                f"Loading tokenizer checkpoint from {config.tokenizer.checkpoint}..."
+            )
             tokenizer.load(str(config.tokenizer.checkpoint))
         else:
-            print("Fitting tokenizer on training data...")
+            logger.info("Fitting tokenizer on training data...")
             tokenizer.fit(X_train)
-            print(f"Saving tokenizer to {config.model_path / 'tokenizer.json'}...")
-            tokenizer.save(str(config.model_path / "tokenizer.json"))
-
-        if config.vectorizer:
-            config.vectorizer.params["tokenizer"] = tokenizer
-        else:
-            config.model.params["tokenizer"] = tokenizer
-
+            logger.info(f"Saving tokenizer to {config.model_path / 'tokenizer.json'}...")
+            
     if config.vectorizer:
-        print("Loading vectorizer...")
+        logger.info("Loading vectorizer...")
         vectorizer = load_vectorizer(config.vectorizer)
 
         if config.vectorizer.checkpoint:
-            print(
+            logger.info(
                 f"Loading vectorizer checkpoint from {config.vectorizer.checkpoint}..."
             )
             vectorizer.load(config.vectorizer.checkpoint)
         else:
-            print("Fitting vectorizer on training data...")
+            logger.info("Fitting vectorizer on training data...")
             vectorizer.fit(X_train)
-            print(f"Saving vectorizer to {config.model_path / 'vectorizer.bz2'}...")
-            vectorizer.save(config.model_path / "vectorizer.bz2")
+            logger.info(f"Saving vectorizer to {config.model_path / 'vectorizer.bz2'}...")
 
-        print("Transforming training and validation data with vectorizer...")
+        logger.info("Transforming training and validation data with vectorizer...")
         X_train = vectorizer.transform(X_train)
         X_val = vectorizer.transform(X_val)
         X_test = vectorizer.transform(X_test)
+            
 
-    print("Loading model...")
+    logger.info("Loading model...")
     model: BaseModel = load_model(config.model, config.model_path)
+    
+    model.tokenizer = tokenizer if config.tokenizer else None
+    model.vectorizer = vectorizer if config.vectorizer else None
 
     if config.model.checkpoint:
-        print(f"Loading model checkpoint from {config.model.checkpoint}...")
+        logger.info(f"Loading model checkpoint from {config.model.checkpoint}...")
         model.load(config.model.checkpoint)
 
-    print("Fitting model...")
+    logger.info("Fitting model...")
     model.fit(X_train, y_train, X_val, y_val)
 
-    print("Evaluating model on test data...")
+    logger.info("Evaluating model on test data...")
     metrics = model.evaluate(
         X_test,
         y_test,
         None,
     )
-    print("Metrics:", metrics)
+    logger.info("Metrics:", metrics)

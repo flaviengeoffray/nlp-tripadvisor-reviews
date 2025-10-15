@@ -11,6 +11,14 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from .base import BaseModel
 from my_tokenizers.base import BaseTokenizer
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 class BaseTorchModel(nn.Module, BaseModel):
@@ -28,17 +36,20 @@ class BaseTorchModel(nn.Module, BaseModel):
         lr: float = kwargs.pop("lr", 1e-4)
 
         device_str = kwargs.pop("device", "cpu")
+
         if device_str == "mps" and not torch.backends.mps.is_available():
-            print(
-                "Warning: MPS (Apple GPU) requested but not available. Falling back to CPU."
+            logger.warning(
+                "MPS (Apple GPU) requested but not available. Falling back to CPU."
             )
             device_str = "cpu"
+        elif device_str == "cuda" and not torch.cuda.is_available():
+            logger.warning(
+                "CUDA (NVIDIA GPU) requested but not available. Falling back to CPU."
+            )
+            device_str = "cpu"
+
         self.device = torch.device(device_str)
-        print(f"Using device: {self.device.type}")
-        if self.device.type == "cuda":
-            print(f"    Device name: {torch.cuda.get_device_name(self.device)}")
-        elif self.device.type == "mps":
-            print("    Using Apple Silicon GPU (MPS backend)")
+        logger.info(f"Using device: {self.device.type}")
         self.to(self.device)
 
         self.tokenizer: BaseTokenizer = kwargs.pop("tokenizer", None)
@@ -146,7 +157,7 @@ class BaseTorchModel(nn.Module, BaseModel):
             else:
                 all_labels = np.array(all_labels, dtype=int)
 
-            print(
+            logger.info(
                 f"Epoch {epoch + 1}/{self.epochs} — Train Loss: {train_loss:.4f} — Val Loss: {val_loss:.4f}"
             )
 
@@ -154,7 +165,7 @@ class BaseTorchModel(nn.Module, BaseModel):
                 X=None, y=all_labels, y_pred=all_preds
             )
 
-            print(
+            logger.info(
                 "Val Metrics — ",
                 ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()),
             )
@@ -177,7 +188,7 @@ class BaseTorchModel(nn.Module, BaseModel):
             else:
                 patience_counter += 1
                 if patience_counter >= self.patience:
-                    print(f"Early stopping at epoch {epoch + 1}.")
+                    logger.info(f"Early stopping at epoch {epoch + 1}.")
                     break
 
     def save(self, path: Path, epoch: int) -> None:

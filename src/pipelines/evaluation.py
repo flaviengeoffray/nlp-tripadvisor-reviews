@@ -4,6 +4,14 @@ from data.dataprep import prepare_data
 from models.base import BaseModel
 from .utils import load_tokenizer, load_vectorizer, load_model
 from .config import Config
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 def evaluate(config: Config) -> None:
@@ -33,40 +41,42 @@ def evaluate(config: Config) -> None:
     )
 
     if config.tokenizer:
-        print("Loading tokenizer...")
+        logger.info("Loading tokenizer...")
         tokenizer = load_tokenizer(config.tokenizer)
         if config.tokenizer.checkpoint:
-            print(f"Loading tokenizer checkpoint from {config.tokenizer.checkpoint}...")
+            logger.info(
+                f"Loading tokenizer checkpoint from {config.tokenizer.checkpoint}..."
+            )
             tokenizer.load(str(config.tokenizer.checkpoint))
 
         config.model.params["tokenizer"] = tokenizer
 
     if config.vectorizer:
-        print("Loading vectorizer...")
+        logger.info("Loading vectorizer...")
         vectorizer = load_vectorizer(config.vectorizer)
 
         if config.vectorizer.checkpoint:
-            print(
+            logger.info(
                 f"Loading vectorizer checkpoint from {config.vectorizer.checkpoint}..."
             )
             vectorizer.load(config.vectorizer.checkpoint)
 
-        print("Transforming data with vectorizer...")
+        logger.info("Transforming data with vectorizer...")
         X_test = vectorizer.transform(X_test)
 
-    print("Loading model...")
+    logger.info("Loading model...")
     model: BaseModel = load_model(config.model, config.model_path)
 
     if not config.model.checkpoint:
         raise Exception("Model checkpoint is needed for evaluation.")
 
-    print(f"Loading model checkpoint from {config.model.checkpoint}...")
+    logger.info(f"Loading model checkpoint from {config.model.checkpoint}...")
     model.load(config.model.checkpoint)
 
-    print("Evaluating model on test data...")
+    logger.info("Evaluating model on test data...")
     metrics = model.evaluate(
         X_test,
         y_test,
         None,
     )
-    print("Metrics:", metrics)
+    logger.info("Metrics:", metrics)

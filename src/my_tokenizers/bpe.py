@@ -6,6 +6,14 @@ from tokenizers.pre_tokenizers import ByteLevel
 from tokenizers.decoders import ByteLevel as ByteLevelDecoder
 from tokenizers.processors import TemplateProcessing
 from .base import BaseTokenizer
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 class BpeTokenizer(BaseTokenizer):
@@ -77,8 +85,8 @@ class BpeTokenizer(BaseTokenizer):
             decoded = " ".join(decoded.split())
             return decoded
         except Exception as e:
-            print(f"Error decoding tokens: {e}")
-            print(f"Tokens: {filtered_tokens}")
+            logger.error(f"Error decoding tokens: {e}")
+            logger.error(f"Tokens: {filtered_tokens}")
             return ""
 
     def token_to_id(self, token: str) -> Optional[int]:

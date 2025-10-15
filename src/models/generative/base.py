@@ -61,9 +61,6 @@ class BaseGenerativeModel(BaseModel, ABC):
                 keywords = extract_keywords(text)
                 prompt = f"{rating}: {keywords}"
                 out = self.generate(prompt)
-                print(f"PROMPT: {prompt}")
-                print(f"OUTPUT: {out}")
-                print()
                 preds.extend(out)
 
         else:

@@ -18,12 +18,12 @@ class TextDataset(Dataset):
     def __len__(self) -> int:
         return len(self.texts)
 
-    def __getitem__(self, idx) -> Dict[str, Tensor]:
-        text = self.texts[idx]
-        tokens = self.tokenizer.encode(text)
+    def __getitem__(self, idx: int) -> Dict[str, Tensor]:
+        text: str = self.texts[idx]
+        tokens: List[int] = self.tokenizer.encode(text)
         if len(tokens) > self.max_len:
             tokens = tokens[: self.max_len]
-        length = len(tokens)
+        length: int = len(tokens)
         tokens = tokens + [self.tokenizer.token_to_id("[PAD]")] * (
             self.max_len - len(tokens)
         )

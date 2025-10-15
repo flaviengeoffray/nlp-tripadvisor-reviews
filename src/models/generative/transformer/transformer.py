@@ -13,6 +13,14 @@ from data.tripadvisor_dataset import TripAdvisorDataset, causal_mask
 
 from models.base_pytorch import BaseTorchModel
 from models.generative.base import BaseGenerativeModel
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 class Embedding(nn.Module):
@@ -547,22 +555,4 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
                 decoder_output = self.decode(
                     encoder_output, encoder_mask, decoder_input, decoder_mask
                 )  # (B, seq_len, d_model)
-                logits = self.project(decoder_output)  # (B, seq_len, vocab_size)
-
-                loss = self.criterion(logits.view(-1, self.vocab_size), label.view(-1))
-                val_loss += loss.item()
-
-                if i % 100 == 0:
-                    output: Tensor = self.inference(encoder_input, encoder_mask)
-
-                    for tokens in output.detach().cpu().tolist():
-                        preds.append(self.tokenizer.decode(tokens))
-
-                    source_texts.extend(B["source_text"])
-                    expected_texts.extend(B["target_text"])
-                    print(f"SOURCE: {B['source_text'][0]}")
-                    print(f"TARGET: {B['target_text'][0]}")
-                    print(f"PREDICTED: {preds[-len(B)]}")
-                i += 1
-
-        return [preds], expected_texts, val_loss
+                logits = self.project(decoder_output)  # (B, seq_len, vocab_siz

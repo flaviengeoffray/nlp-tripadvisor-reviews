@@ -49,7 +49,7 @@ def cli(ctx: click.Context, config: Optional[str], seed: int) -> None:
     set_seed(seed)
 
 
-@cli.command()
+@cli.command(name="train")
 @click.pass_context
 def launchtrain(
     ctx: click.Context,

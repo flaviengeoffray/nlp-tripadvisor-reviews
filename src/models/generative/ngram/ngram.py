@@ -10,6 +10,14 @@ from my_tokenizers.bpe import BpeTokenizer
 from nltk.util import ngrams
 
 nltk.download("punkt", quiet=True)
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 class NgramGenerator(BaseGenerativeModel):
@@ -25,13 +33,13 @@ class NgramGenerator(BaseGenerativeModel):
         super().__init__(model_path=model_path, **kwargs)
 
     def fit(self, X_train: Any, y_train: Any, X_val: Any, y_val: Any) -> None:
-        print("[NgramGenerator] Starting training...")
+        logger.info("[NgramGenerator] Starting training...")
         tokenized = [self.tokenizer.encode(s.lower()) for s in X_train]
-        print(f"[NgramGenerator] Tokenized {len(tokenized)} sentences.")
+        logger.info(f"[NgramGenerator] Tokenized {len(tokenized)} sentences.")
         self.unigram_counts = Counter([w for sent in tokenized for w in sent])
         self.V = len(self.unigram_counts)
         self.vocab = set(self.unigram_counts.keys())
-        print(f"[NgramGenerator] Vocabulary size: {self.V}")
+        logger.info(f"[NgramGenerator] Vocabulary size: {self.V}")
 
         # For each n-gram order, compute probabilities
         for order in range(2, self.n + 1):
@@ -47,10 +55,10 @@ class NgramGenerator(BaseGenerativeModel):
                 context = gram[:-1]
                 context_count = context_counts[context]
                 self.ngram_probs[order][gram] = (count + 1) / (context_count + self.V)
-            print(
+            logger.info(
                 f"[NgramGenerator] Extracted {len(ngram_counts)} unique {order}-grams."
             )
-        print("[NgramGenerator] Training complete.")
+        logger.info("[NgramGenerator] Training complete.")
 
     def infer_next_token(self, tokens):
         # Try to infer the next token using n-grams of decreasing size
@@ -72,7 +80,7 @@ class NgramGenerator(BaseGenerativeModel):
         return None
 
     def generate(self, prompt, max_length=20):
-        print(f"[NgramGenerator] Generating text for prompt: '{prompt}'")
+        logger.info(f"[NgramGenerator] Generating text for prompt: '{prompt}'")
         tokens = self.tokenizer.encode(prompt.lower())
 
         # Remove any end-of-string or special tokens at the end of the prompt
@@ -89,13 +97,13 @@ class NgramGenerator(BaseGenerativeModel):
         for i in range(max_length):
             next_token = self.infer_next_token(out)
             if not next_token:
-                print("[NgramGenerator] No next token found, stopping generation.")
+                logger.info("[NgramGenerator] No next token found, stopping generation.")
                 break
             out.append(next_token)
             if next_token == last_token:
                 repeat_count += 1
                 if repeat_count > 5:
-                    print(
+                    logger.info(
                         f"[NgramGenerator] Token '{next_token}' repeated more than 5 times, stopping generation."
                     )
                     break
@@ -103,7 +111,7 @@ class NgramGenerator(BaseGenerativeModel):
                 repeat_count = 0
             last_token = next_token
         generated_text = self.tokenizer.decode(out)
-        print(f"[NgramGenerator] Generated text: '{generated_text}'")
+        logger.info(f"[NgramGenerator] Generated text: '{generated_text}'")
         return generated_text
 
     def perplexity(self, sentences):

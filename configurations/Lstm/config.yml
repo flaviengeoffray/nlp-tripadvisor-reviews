@@ -6,15 +6,15 @@ tokenizer:
     vocab_size: 20000
     min_frequency: 2
 
-# vectorizer:
-#   type: "tf-idf"
-#   params:
-#     max_features: 1000
-#     stop_words: "english"
-#     norm: "l2"
-#     use_idf: true
-#     smooth_idf: true
-#     sublinear_tf: false
+vectorizer:
+  type: "tf-idf"
+  params:
+    max_features: 1000
+    stop_words: "english"
+    norm: "l2"
+    use_idf: true
+    smooth_idf: true
+    sublinear_tf: false
 
 augmented_data: "augmented.csv"
 
@@ -28,5 +28,5 @@ model:
     lr: 0.001
     num_layers: 2
     # scheduler: true
-    device: "cuda"
+    device: "mps"
 

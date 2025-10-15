@@ -8,6 +8,14 @@ from typing import Any, List, Optional
 import nltk
 
 nltk.download("averaged_perceptron_tagger_eng")
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 # Global variable for ProcessPoolExecutor usage.
 augmenters = {}
@@ -109,7 +117,7 @@ class DataAugmentation:
                     try:
                         new_entries.extend(fut.result())
                     except Exception as e:
-                        print(f"Worker error for label {label}: {e}")
+                        logger.error(f"Worker error for label {label}: {e}")
 
             new_rows = new_entries[:needed]
             if new_rows:
@@ -127,4 +135,4 @@ class DataAugmentation:
     @staticmethod
     def save_augmented_data(df: pd.DataFrame, file_path: str) -> None:
         df.to_csv(file_path, index=False)
-        print(f"Saved {len(df)} augmented samples to {file_path}")
+        logger.info(f"Saved {len(df)} augmented samples to {file_path}")

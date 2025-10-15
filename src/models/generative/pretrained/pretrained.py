@@ -11,6 +11,14 @@ from transformers import (
 )
 
 from models.generative.base import BaseGenerativeModel
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 class PretrainedGenerator(BaseGenerativeModel):
@@ -25,13 +33,13 @@ class PretrainedGenerator(BaseGenerativeModel):
 
         if requested_device == "mps":
             if not torch.backends.mps.is_available():
-                print(
+                logger.warning(
                     "Warning: MPS device requested but not available. Using CPU instead."
                 )
                 self.device = "cpu"
             else:
                 self.device = "mps"
-                print(
+                logger.info(
                     "Warning: MPS backend has limited memory. If you encounter OOM errors, set device='cpu'."
                 )
         elif requested_device == "cuda":
@@ -129,7 +137,7 @@ class PretrainedGenerator(BaseGenerativeModel):
         self.model.eval()
 
         val_metrics = trainer.evaluate()
-        print(f"Validation loss: {val_metrics.get('eval_loss'):.4f}")
+        logger.info(f"Validation loss: {val_metrics.get('eval_loss'):.4f}")
         self.eval_data = eval_data
 
     def generate(

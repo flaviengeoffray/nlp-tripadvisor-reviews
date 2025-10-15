@@ -48,9 +48,7 @@ class LSTMModel(BaseTorchModel, BaseClassificationModel):
         super().__init__(model_path=model_path, **kwargs)
 
     def forward(self, X: Tensor) -> Tensor:
-        # LSTM layers in PyTorch expect 3D input tensors
-        if X.dim() == 2:
-            X = X.unsqueeze(1)  # [batch_size, 1000, 1]
+        X = self.vectorizer.transform(X)  # Transform input texts to vectors
 
         h0 = torch.zeros(
             self.num_layers * (2 if self.bidirectional else 1),
@@ -60,7 +58,7 @@ class LSTMModel(BaseTorchModel, BaseClassificationModel):
         )
         c0 = torch.zeros_like(h0)
 
-        out, _ = self.lstm(X, (h0, c0))
+        out, _ = self.lstm(X, (h0, c0))  # out: [batch_size, seq_len, hidden_dim*directions]
         out = self.fc(out[:, -1, :])
         return out
 

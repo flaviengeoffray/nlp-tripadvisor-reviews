@@ -7,16 +7,6 @@ tokenizer:
     vocab_size: 10000
     min_frequency: 2
 
-# vectorizer:
-#   type: "tf-idf"
-#   params:
-#     max_features: 1000
-#     stop_words: "english"
-#     norm: "l2"
-#     use_idf: true
-#     smooth_idf: true
-#     sublinear_tf: false
-#
 sample_size: 1000
 
 device: "mps"

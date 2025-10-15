@@ -6,6 +6,14 @@ from torch import Tensor
 from sklearn.linear_model import LogisticRegression
 from models.classification.base import BaseClassificationModel
 from my_tokenizers.base import BaseTokenizer
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 
 class LogisticRegressionModel(BaseClassificationModel):
@@ -31,7 +39,7 @@ class LogisticRegressionModel(BaseClassificationModel):
         self.model.fit(X_train, y_train)
         metrics: Dict[str, float] = self.evaluate(X_train, y_train)
 
-        print("Metrics —", ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()))
+        logger.info("Metrics — %s", ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()))
 
         from utils import save_metrics
 
