@@ -553,8 +553,17 @@ class Transformer(BaseTorchModel, BaseGenerativeModel):
             )  # (batch_size, seq_len, d_model)
 
             logits = self.project(decoder_output[:, -1, :])
-            next_tokens = torch.argmax(logits, dim=-1)
-
+            
+            greedy = False
+            if greedy:  # Greedy decoding (awful results), model will loop on some tokens
+                next_tokens = torch.argmax(logits, dim=-1)
+            else:  # Top-k sampling decoding (much better results)
+                topk_logits, topk_indices = torch.topk(logits, 10, dim=-1)
+                probs = torch.softmax(topk_logits, dim=-1)
+                next_tokens = topk_indices[
+                    torch.arange(batch_size),
+                    torch.multinomial(probs, num_samples=1).squeeze(-1),
+                ]
             decoder_input = torch.cat(
                 [
                     decoder_input,
