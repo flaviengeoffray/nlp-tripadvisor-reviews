@@ -1,0 +1,27 @@
+model_path: "configurations/Transformer/"
+
+tokenizer:
+  type: "bpe"
+  checkpoint: "configurations/Transformer/tokenizer.json"
+  params:
+    vocab_size: 10000
+    min_frequency: 2
+
+sample_size: 1000
+
+device: "mps"
+model:
+  type: "transformer"
+  checkpoint: "configurations/Transformer/best_model.pt"
+  params:
+    vocab_size: 10000
+    batch_size: 8
+    epochs: 20
+    max_input_len: 32
+    max_target_len: 256
+    d_model: 128
+    N: 4
+    h: 8
+    lr: 0.0001
+    dropout: 0.1
+    device: "mps"

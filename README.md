@@ -16,18 +16,41 @@ This repository contains our NLP project for analyzing TripAdvisor hotel reviews
 - **Goal**: Explore both discriminative and generative NLP pipelines
 
 ---
+## Installation
+
+```
+uv venv python=3.10
+source .venv/bin/activate
+uv pip install -r pyproject.toml
+```
 
 ## 🚀 Getting Started
 
-Run the project using configuration-driven scripts:
+Run the project using the repository CLI located at `src/main.py`. The CLI is configuration-driven and exposes three main commands: `train`, `eval` and `infer`.
+
+Examples (run from repository root):
 
 ```bash
-python train.py -c config.yml      # Train classification/generative model
-python evaluate.py -c config.yml   # Evaluate trained model
-python generate.py -c config.yml   # Generate new reviews
+uv run src/main.py --config configurations/FeedForward/config.yaml train --help
+# Show options for the train command
+
+# Train a model using a specific configuration and seed (recommended runner)
+uv run src/main.py --config configurations/FeedForward/config.yaml --seed 42 train
+
+# Evaluate a trained model
+uv run src/main.py --config configurations/FeedForward/config.yaml eval
+
+# Run inference / generate text from a prompt (provide prompt and rating)
+uv run src/main.py --config configurations/Transformer/config.yaml --seed 42 infer -p "clean, location, nice, pretty, comfortable" -r 5
+
 ```
 
-Example configuration files are available in the `examples/` directory. All training, preprocessing, and model details are specified via YAML.
+Notes:
+- The `--config` option is required and should point to one of the YAML files in the `configurations/` folder (for example `configurations/Transformer/config.yaml`).
+- `--seed` sets the random seed for reproducibility (default: 42).
+- Use `uv run src/main.py --config <config> <command> --help` or `python -m src.main --config <config> <command> --help` to see command-specific options.
+
+Example configuration files are available in the `configurations` directory. All training, preprocessing, and model details are specified via YAML.
 
 ---
 
@@ -122,16 +145,26 @@ Modular, configuration-driven system:
 
 ---
 
-## 📦 Project Structure
+## 📦 Project structure
+
+Repository layout (top-level):
 
 ```
-├── train.py          # Training script
-├── evaluate.py       # Evaluation script
-├── generate.py       # Text generation script
-├── data/             # Preprocessing and augmentation
-├── examples/         # Example config files
-├── notebooks/        # Exploratory notebooks
+pyproject.toml
+README.md
+configurations/        # Example YAML configs per pipeline/model
+docs/                  # Documentation and figures
+notebooks/             # Exploratory notebooks
+src/                   # Source code (entrypoint: src/main.py)
+  ├── main.py
+  ├── data/             # preprocessing, augmentation, datasets
+  ├── models/           # model implementations and modules
+  ├── my_tokenizers/    # BPE / custom tokenizers
+  ├── my_vectorizers/   # TF-IDF, word2vec helpers
+  └── pipelines/        # training, evaluation, generation pipelines
 ```
+
+Use `src/main.py` as the CLI entrypoint (via `uv run` or `python -m src.main`).
 
 ---
 
@@ -145,14 +178,14 @@ Modular, configuration-driven system:
 
 ## 📄 Technical Report
 
-For detailed methodology, architecture diagrams, results, and limitations, please refer to our full [Technical Report (PDF)](./TechnicalReport.pdf).
+For detailed methodology, architecture diagrams, results, and limitations, please refer to our full [Technical Report (PDF)](./docs/TechnicalReport.pdf).
 
 ---
 
 ## 👥 Authors
 
-- Lucas Duport  
-- Eugenie Beauvillain  
-- Yanis Martin  
-- Arthur Courselle  
-- Flavien Geoffray
+- Lucas Duport <lucas.duport@epita.fr>
+- Eugenie Beauvillain <eugenie.beauvillain@epita.fr>
+- Yanis Martin <yanis.martin@epita.fr>
+- Arthur Courselle <arthur.courselle@epita.fr>
+- Flavien Geoffray <flavien.geoffray@epita.fr>
